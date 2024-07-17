@@ -5,6 +5,38 @@
 #include "tensorflow/core/platform/types.h"
 
 namespace tensorflow {
+
+constexpr size_t _128B = (1 << 7);
+constexpr size_t _32MB = (1 << 25);
+constexpr size_t _64MB = (1 << 26);
+constexpr size_t _128MB = (1 << 27);
+constexpr size_t _32KB = (1 << 15);
+constexpr size_t _4KB = (1 << 12);
+constexpr size_t _4KB_OFFSET = 12;
+constexpr size_t _8KB = (1 << 13);
+constexpr size_t _8KB_OFFSET = 13;
+constexpr size_t _16KB = (1 << 14);
+constexpr size_t _16KB_OFFSET = 14;
+constexpr size_t _32KB_OFFSET = 15;
+
+inline bool SmallAlloc(size_t s) {
+  return s <= _32KB;
+}
+
+inline size_t Index(size_t s, size_t alignment, size_t alignment_offset) {
+  if (SmallAlloc(s)) {
+    return -1;
+  }
+
+  int64_t aligned = alignment *
+    ((s + alignment - 1) / alignment);
+  return ((aligned - _32KB) >> alignment_offset) - 1;
+}
+
+inline double Timeval2Double(const timeval& tv) {
+  return tv.tv_sec * 1000 * 1000 + tv.tv_usec;
+}
+
 constexpr int kClassNum = 67;
 constexpr int kMaxClassSize = 32 * 1024; // 32 KB
 // This size class is token from tcmalloc
