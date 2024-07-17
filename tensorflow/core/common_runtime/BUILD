@@ -1915,6 +1915,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps=[
         "//tensorflow/core/lib/core:spin_lock",
+        "@com_google_absl//absl/types:optional",
     ]
 )
 
@@ -1951,6 +1952,7 @@ tf_cuda_library(
         "//tensorflow/core/profiler/lib:device_profiler_session",
         "//tensorflow/core/profiler/lib:profiler_backends",
         "//tensorflow/core/profiler/lib:traceme_encode",
+        "//tensorflow/core/common_runtime/gpu:gpu_memory_planner",
         "@com_google_absl//absl/container:flat_hash_set",
     ],
     alwayslink = 1,
