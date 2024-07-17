@@ -93,6 +93,10 @@ class DefaultCPUSubAllocator : public SubAllocator {
   void Free(void* ptr, size_t num_bytes) override {
     port::AlignedFree(ptr);
   }
+
+  virtual bool SupportsCoalescing() override {
+    return false;
+  }
 };
 }
 
@@ -425,12 +429,16 @@ class TensorPoolAllocatorFactory : public AllocatorFactory {
     explicit TensorPoolSubAllocator(TensorPoolAllocator* allocator)
       : SubAllocator({}, {}), allocator_(allocator) {}
 
-    void* Alloc(size_t alignment, size_t num_bytes) override {
+    void* Alloc(size_t alignment, size_t num_bytes, size_t* bytes_received) override {
       return allocator_->AllocateRaw(alignment, num_bytes);
     }
     
     void Free(void* ptr, size_t num_bytes) override {
       allocator_->DeallocateRaw(ptr);
+    }
+
+    virtual bool SupportsCoalescing() override { 
+      return false; 
     }
 
    private:

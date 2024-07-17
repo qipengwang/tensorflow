@@ -233,23 +233,6 @@ void GPUTensorPoolAllocator::DeallocateRaw(void* ptr) {
   }
 }
 
-void GPUTensorPoolAllocator::DeallocateRawAsync(void* ptr) {
-  if (!inited_.load()) {
-    mem_planner_->TrackDeallocate(ptr);
-    {
-      std::lock_guard<spin_lock> l(free_lock_);
-      async_free_list_.push_back(ptr);
-    }
-  } else if (IsBigOwned(ptr)) {
-    BigDeallocate(ptr);
-  } else if (IsSmallOwned(ptr)) {
-    SmallDeallocate(ptr);
-  } else {
-    std::lock_guard<spin_lock> l(free_lock_);
-    async_free_list_.push_back(ptr);
-  }
-}
-
 absl::optional<AllocatorStats> GPUTensorPoolAllocator::GetStats() {
   return alloc_stats_;
 }
