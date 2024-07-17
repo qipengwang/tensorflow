@@ -220,8 +220,9 @@ tf_cuda_library(
         "//tensorflow/core/profiler/lib:device_profiler_session",
         # "//tensorflow/core/common_runtime:memory_planner",
         # "//tensorflow/core/common_runtime/gpu:gpu_memory_planner",
-        # "//tensorflow/core/common_runtime:size_class",
-        "//tensorflow/core/common_runtime/gpu:gpu_tensorpool_allocator"
+        "//tensorflow/core/common_runtime:size_class",
+        "//tensorflow/core/common_runtime/gpu:gpu_tensorpool_allocator",
+        "//tensorflow/core/common_runtime:tensorpool_allocator",
     ],
 )
 

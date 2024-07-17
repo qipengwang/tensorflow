@@ -250,6 +250,8 @@ tf_cuda_library(
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/profiler/lib:scoped_memory_debug_annotation",
         "//tensorflow/core/profiler/lib:traceme",
+        "//tensorflow/core/common_runtime:tensorpool_allocator",
+        "//tensorflow/core/common_runtime:size_class",
     ],
 )
 
