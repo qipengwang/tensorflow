@@ -157,7 +157,6 @@ void GPUTensorPoolAllocator::Init() {
       }
     }
 
-    size_t bytes_received;
     small_mem_begin_ = sub_allocator_->Alloc(max_alignment, small_bytes_, &bytes_received);
     if (small_bytes_ > 0 && small_mem_begin_ == nullptr) {
       LOG(FATAL) << "OOM!!! Try to alloc("
