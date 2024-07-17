@@ -238,6 +238,8 @@ filegroup(
         "shared_counter.h",
         "base_collective_executor.h",
         "bfc_allocator.h",
+        "memory_planner.h",
+        "tensorpool_allocator.h",
         "hierarchical_tree_broadcaster.h",
         "buf_rendezvous.h",
         "build_graph_options.h",
@@ -1728,6 +1730,8 @@ tf_cuda_library(
         ":all_to_all",
         ":base_collective_executor",
         ":bfc_allocator",
+        ":memory_planner",
+        ":tensorpool_allocator",
         ":buf_rendezvous",
         ":build_graph_options",
         ":collective_executor_mgr",
@@ -1866,6 +1870,55 @@ cc_library(
 )
 
 cc_library(
+    name = "size_class",
+    hdrs = [
+        "size_class.h",
+    ],
+    features = ["parse_headers"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//tensorflow/core/platform:logging",
+        "//tensorflow/core/platform:types"
+    ]
+)
+
+
+cc_library(
+    name = "memory_planner",
+    srcs = [
+        "memory_planner.cc",
+    ],
+    hdrs = [
+        "memory_planner.h",
+    ],
+    features = ["parse_headers"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":tensorpool_allocator",
+        "//tensorflow/core/lib/core:spin_lock",
+        "//tensorflow/core/lib/core:threadpool",
+        "//tensorflow/core/platform:logging",
+        "//tensorflow/core/platform:types",
+    ],
+)
+
+
+cc_library(
+    name = "tensorpool_allocator",
+    srcs = [
+        "tensorpool_allocator.cc",
+    ],
+    hdrs=[
+        "tensorpool_allocator.h",
+    ],
+    features = ["parse_headers"],
+    visibility = ["//visibility:public"],
+    deps=[
+        "//tensorflow/core/lib/core:spin_lock",
+    ]
+)
+
+cc_library(
     name = "shared_counter",
     hdrs = ["shared_counter.h"],
     features = ["parse_headers"],
@@ -1883,6 +1936,7 @@ tf_cuda_library(
     ],
     copts = tf_copts(),
     deps = [
+        ":memory_planner",
         ":core_cpu_internal",
         "//tensorflow/core:framework",
         "//tensorflow/core:framework_internal",

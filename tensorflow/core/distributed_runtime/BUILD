@@ -218,6 +218,10 @@ tf_cuda_library(
         "//tensorflow/core:framework",
         "//tensorflow/core:lib_internal",
         "//tensorflow/core/profiler/lib:device_profiler_session",
+        "//tensorflow/core/common_runtime:memory_planner",
+        "//tensorflow/core/common_runtime/gpu:gpu_memory_planner",
+        # "//tensorflow/core/common_runtime:size_class",
+        # "//tensorflow/core/common_runtime:tensorpool_allocator"
     ],
 )
 

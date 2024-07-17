@@ -818,6 +818,7 @@ BFCAllocator::ChunkHandle BFCAllocator::TryToCoalesce(ChunkHandle h,
 }
 
 void BFCAllocator::SetSafeFrontier(uint64 count) {
+  VLOG(2) << "Calling SetSafeFrontier " << count;
   uint64 current = safe_frontier_.load(std::memory_order_relaxed);
   while (count > current) {
     if (safe_frontier_.compare_exchange_strong(current, count)) {
@@ -904,9 +905,13 @@ bool BFCAllocator::MergeTimestampedChunks(size_t required_bytes) {
   return satisfied;
 }
 
-bool BFCAllocator::TracksAllocationSizes() const { return true; }
+bool BFCAllocator::TracksAllocationSizes() const { 
+  VLOG(2) << "Calling TracksAllocationSizes --> True";
+  return true; 
+}
 
 size_t BFCAllocator::RequestedSize(const void* ptr) const {
+  VLOG(2) << "Calling RequestedSize";
   CHECK(ptr);
   mutex_lock l(lock_);
   BFCAllocator::ChunkHandle h = region_manager_.get_handle(ptr);
@@ -917,6 +922,7 @@ size_t BFCAllocator::RequestedSize(const void* ptr) const {
 }
 
 size_t BFCAllocator::AllocatedSize(const void* ptr) const {
+  VLOG(2) << "Calling AllocatedSize";
   mutex_lock l(lock_);
   BFCAllocator::ChunkHandle h = region_manager_.get_handle(ptr);
   CHECK(h != kInvalidChunkHandle)
@@ -926,6 +932,7 @@ size_t BFCAllocator::AllocatedSize(const void* ptr) const {
 }
 
 int64_t BFCAllocator::AllocationId(const void* ptr) const {
+  VLOG(2) << "Calling AllocationId";
   mutex_lock l(lock_);
   BFCAllocator::ChunkHandle h = region_manager_.get_handle(ptr);
   CHECK(h != kInvalidChunkHandle)
@@ -1107,6 +1114,7 @@ void BFCAllocator::MaybeWriteMemoryMap() {
 }
 
 MemoryDump BFCAllocator::RecordMemoryMap() {
+  VLOG(2) << "Calling RecordMemoryMap";
   mutex_lock l(lock_);
   return RecordMemoryMapInternal();
 }
@@ -1178,11 +1186,13 @@ MemoryDump BFCAllocator::RecordMemoryMapInternal() {
 }
 
 absl::optional<AllocatorStats> BFCAllocator::GetStats() {
+  VLOG(2) << "Calling GetStats";
   mutex_lock l(lock_);
   return stats_;
 }
 
 bool BFCAllocator::ClearStats() {
+  VLOG(2) << "Calling ClearStats";
   mutex_lock l(lock_);
   stats_.num_allocs = 0;
   stats_.peak_bytes_in_use = stats_.bytes_in_use;

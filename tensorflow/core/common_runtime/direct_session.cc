@@ -19,6 +19,8 @@ limitations under the License.
 #include <atomic>
 #include <string>
 #include <vector>
+#include <memory>
+#include <unordered_map>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/time/time.h"
@@ -40,6 +42,8 @@ limitations under the License.
 #include "tensorflow/core/common_runtime/rendezvous_mgr.h"
 #include "tensorflow/core/common_runtime/scoped_allocator_mgr.h"
 #include "tensorflow/core/common_runtime/step_stats_collector.h"
+#include "tensorflow/core/common_runtime/memory_planner.h"
+#include "tensorflow/core/common_runtime/gpu/gpu_memory_planner.h"
 #include "tensorflow/core/framework/function.h"
 #include "tensorflow/core/framework/graph.pb.h"
 #include "tensorflow/core/framework/graph_def_util.h"
@@ -822,6 +826,21 @@ Status DirectSession::RunInternal(
   return Status::OK();
 }
 
+bool DirectSession::EnableTensorPoolTracking(ExecutorsAndKeys* executors_and_keys) {
+  static std::unordered_map<ExecutorsAndKeys*, bool> has_training_graph;
+  if (has_training_graph.find(executors_and_keys) == has_training_graph.end()) {
+    for (const PerPartitionExecutorsAndLib& partition :
+        executors_and_keys->items) {
+      if (partition.graph->IsTrainingGraph()) {
+        has_training_graph[executors_and_keys] = true;
+        return true;
+      }
+    }
+    has_training_graph[executors_and_keys] = false;
+  }
+  return has_training_graph[executors_and_keys];
+}
+
 Status DirectSession::Run(const RunOptions& run_options,
                           const NamedTensorList& inputs,
                           const std::vector<string>& output_names,
@@ -842,6 +861,9 @@ Status DirectSession::Run(const RunOptions& run_options,
   TF_RETURN_IF_ERROR(CheckNotClosed());
   TF_RETURN_IF_ERROR(CheckGraphCreated("Run()"));
   direct_session_runs->GetCell()->IncrementBy(1);
+
+  ScopedMemoryCollector scoped_memory_collector;
+  std::unique_ptr<GPUScopedMemoryCollector> scoped_memory_collector_gpu_ptr;
 
   // Extract the inputs names for this run of the session.
   std::vector<string> input_tensor_names;
@@ -865,6 +887,9 @@ Status DirectSession::Run(const RunOptions& run_options,
   {
     mutex_lock l(collective_graph_key_lock_);
     collective_graph_key_ = executors_and_keys->collective_graph_key;
+    if (EnableTensorPoolTracking(executors_and_keys)) {
+      scoped_memory_collector_gpu_ptr.reset(new GPUScopedMemoryCollector);
+    }
   }
 
   // Configure a call frame for the step, which we use to feed and

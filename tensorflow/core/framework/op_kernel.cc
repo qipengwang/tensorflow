@@ -634,6 +634,7 @@ void OpKernelContext::maybe_initialize_scope_id_set() {
 
 Status OpKernelContext::allocate_output(int index, const TensorShape& shape,
                                         Tensor** tensor) {
+  VLOG(2) << "allocate_output in OpKernelContext";
   if (index < 0) {
     return errors::Internal("allocate_output with bad index=", index,
                             " kernel=", params_->op_kernel->name());
@@ -658,6 +659,7 @@ Status OpKernelContext::allocate_output(int index, const TensorShape& shape,
 Status OpKernelContext::allocate_output(StringPiece name,
                                         const TensorShape& shape,
                                         Tensor** tensor) {
+  VLOG(2) << "allocate_output in OpKernelContext";
   int start, stop;
   TF_RETURN_IF_ERROR(params_->op_kernel->OutputRange(name, &start, &stop));
   if (stop != start + 1) {
@@ -673,6 +675,7 @@ Status OpKernelContext::allocate_output(StringPiece name,
                                         const TensorShape& shape,
                                         Tensor** tensor,
                                         AllocatorAttributes attr) {
+  VLOG(2) << "allocate_output in OpKernelContext";
   int start, stop;
   TF_RETURN_IF_ERROR(params_->op_kernel->OutputRange(name, &start, &stop));
   if (stop != start + 1) {
@@ -687,6 +690,7 @@ Status OpKernelContext::allocate_output(StringPiece name,
 Status OpKernelContext::allocate_tensor(
     DataType type, const TensorShape& shape, Tensor* out_tensor,
     AllocatorAttributes attr, const AllocationAttributes& allocation_attr) {
+  VLOG(2) << "allocate_tensor in OpKernelContext";
   Allocator* a = get_allocator(attr);
   Tensor new_tensor(
       a, type, shape,
@@ -711,6 +715,7 @@ Status OpKernelContext::allocate_tensor(
 Status OpKernelContext::allocate_output(int index, const TensorShape& shape,
                                         Tensor** output,
                                         AllocatorAttributes attr) {
+  VLOG(2) << "allocate_output in OpKernelContext";
   if (index < 0) {
     return errors::Internal("allocate_output with bad index=", index,
                             " kernel=", params_->op_kernel->name());

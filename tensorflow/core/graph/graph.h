@@ -739,6 +739,9 @@ class Graph {
 
   // TODO(josh11b): uint64 hash() const;
 
+  // Return true if this graph contain gradients node
+  bool IsTrainingGraph() const;
+
  private:
   // If cost_node is non-null, then cost accounting (in CostModel)
   // will be associated with that node rather than the new one being

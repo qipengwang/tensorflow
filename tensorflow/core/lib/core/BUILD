@@ -133,6 +133,11 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "spin_lock",
+    hdrs = ["spin_lock.h"],
+)
+
 tf_proto_library(
     name = "error_codes_proto",
     srcs = ["error_codes.proto"],

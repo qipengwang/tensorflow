@@ -269,6 +269,8 @@ class DirectSession : public Session {
       RunMetadata* run_metadata,
       const thread::ThreadPoolOptions& threadpool_options);
 
+  bool EnableTensorPoolTracking(ExecutorsAndKeys* executors_and_keys);
+
   // Returns whether inter-op execution uses a global pool or the input
   // `run_options` requests being run on inter_op_thread_pool = 0 in case
   // multiple pools are configured.

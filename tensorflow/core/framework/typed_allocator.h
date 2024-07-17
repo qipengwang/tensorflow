@@ -38,6 +38,7 @@ class TypedAllocator {
                      const AllocationAttributes& allocation_attr) {
     // TODO(jeff): Do we need to allow clients to pass in alignment
     // requirements?
+    VLOG(2) << "Calling TypedAllocator::Allocate";
 
     if (num_elements > (std::numeric_limits<size_t>::max() / sizeof(T))) {
       return nullptr;

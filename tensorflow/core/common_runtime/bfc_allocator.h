@@ -77,11 +77,17 @@ class BFCAllocator : public Allocator {
 
   bool ClearStats() override;
 
-  void SetTimingCounter(SharedCounter* sc) { timing_counter_ = sc; }
+  void SetTimingCounter(SharedCounter* sc) { 
+    VLOG(2) << "Calling ClearStats";
+    timing_counter_ = sc; 
+  }
 
   void SetSafeFrontier(uint64 count) override;
 
-  bool ShouldRecordOpName() const { return true; }
+  bool ShouldRecordOpName() const { 
+    VLOG(2) << "Calling ClearStats --> True";
+    return true; 
+  }
 
   MemoryDump RecordMemoryMap();
 

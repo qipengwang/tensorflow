@@ -31,6 +31,7 @@ limitations under the License.
 #include "tensorflow/core/common_runtime/gpu/gpu_virtual_mem_allocator.h"
 #include "tensorflow/core/common_runtime/pool_allocator.h"
 #include "tensorflow/core/common_runtime/shared_counter.h"
+#include "tensorflow/core/common_runtime/gpu/gpu_tensorpool_allocator.h"
 #include "tensorflow/core/framework/allocator.h"
 #include "tensorflow/core/framework/log_memory.h"
 #include "tensorflow/core/framework/tracking_allocator.h"
@@ -70,6 +71,12 @@ static bool UseCudaMallocAsyncAllocator() {
                << "but TensorFlow was not compiled with CUDA 11.2+.";
   return false;
 #endif
+}
+
+bool useTensorPoolAllocator() {
+  const char* debug_allocator_str = std::getenv("TF_GPU_ALLOCATOR");
+  return debug_allocator_str != nullptr &&
+      std::strcmp(debug_allocator_str, "tensorpool") == 0;
 }
 
 /*static*/ GPUProcessState* GPUProcessState::singleton(GPUProcessState* ps) {
@@ -151,6 +158,7 @@ static SubAllocator* CreateSubAllocator(
 Allocator* GPUProcessState::GetGPUAllocator(
     const GPUOptions& options, TfDeviceId tf_device_id, size_t total_bytes,
     const std::vector<TfDeviceId>& peer_gpu_ids) {
+  VLOG(2) << "Calling GPUProcessState::GetGPUAllocator";
   CHECK(process_state_);
 #if (defined(GOOGLE_CUDA) && GOOGLE_CUDA) || \
     (defined(TENSORFLOW_USE_ROCM) && TENSORFLOW_USE_ROCM)
@@ -182,16 +190,36 @@ Allocator* GPUProcessState::GetGPUAllocator(
     auto* sub_allocator =
         CreateSubAllocator(options, platform_device_id, gpu_visitors_[bus_id],
                            total_bytes, peer_gpu_ids);
-    GPUBFCAllocator* gpu_bfc_allocator = new GPUBFCAllocator(
-        sub_allocator, total_bytes, options,
-        strings::StrCat("GPU_", tf_device_id.value(), "_bfc"),
-        options.experimental().internal_fragmentation_fraction());
-    Allocator* gpu_allocator = gpu_bfc_allocator;
+    // GPUBFCAllocator* gpu_bfc_allocator = new GPUBFCAllocator(
+    //     sub_allocator, total_bytes, options,
+    //     strings::StrCat("GPU_", tf_device_id.value(), "_bfc"),
+    //     options.experimental().internal_fragmentation_fraction());
+    // Allocator* gpu_allocator = gpu_bfc_allocator;
+    Allocator* gpu_allocator = nullptr;
+    GPUBFCAllocator* gpu_bfc_allocator = nullptr;
+    if (useTensorPoolAllocator()) {
+      gpu_allocator =
+          new GPUTensorPoolAllocator(sub_allocator,
+                      strings::StrCat("GPU_", tf_gpu_id.value(), "_tensorpool"),
+                      total_bytes);
+    } else {
+      gpu_bfc_allocator =
+          new GPUBFCAllocator(sub_allocator, total_bytes, options,
+                            strings::StrCat("GPU_", tf_gpu_id.value(), "_bfc"),
+                            options.experimental().internal_fragmentation_fraction());
+      gpu_allocator = gpu_bfc_allocator;
+    }
 
     SharedCounter* timing_counter = nullptr;
     if (options.experimental().timestamped_allocator()) {
-      timing_counter = new SharedCounter;
-      gpu_bfc_allocator->SetTimingCounter(timing_counter);
+      if (useTensorPoolAllocator()) {
+        LOG(WARNING) << "TensorPoolAllocator " << "don't support timestamped_allocator";
+      } else {
+        timing_counter = new SharedCounter;
+        gpu_bfc_allocator->SetTimingCounter(timing_counter);
+      }
+      // timing_counter = new SharedCounter;
+      // gpu_bfc_allocator->SetTimingCounter(timing_counter);
     }
 
     // If true, checks for memory overwrites by writing
@@ -260,6 +288,10 @@ SharedCounter* GPUProcessState::GPUAllocatorCounter(TfDeviceId tf_device_id) {
   if (tf_device_id.value() >= static_cast<int64_t>(gpu_allocators_.size())) {
     LOG(ERROR) << "Asked for counter for GPU allocator " << tf_device_id.value()
                << " but only have " << gpu_allocators_.size();
+    return nullptr;
+  }
+  if (useTensorPoolAllocator()) {
+    LOG(WARNING) << "TensorPoolAllocator " << "don't support timestamped_allocator";
     return nullptr;
   }
 

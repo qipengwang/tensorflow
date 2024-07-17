@@ -106,6 +106,8 @@ filegroup(
     name = "gpu_runtime_headers",
     srcs = [
         "gpu_bfc_allocator.h",
+        "gpu_tensorpool_allocator.h",
+        "gpu_memory_planner.h",
         "gpu_cudamalloc_allocator.h",
         "gpu_cudamallocasync_allocator.h",
         "gpu_debug_allocator.h",
@@ -145,6 +147,8 @@ tf_cuda_library(
     ],
     deps = [
         ":gpu_bfc_allocator",
+        ":gpu_tensorpool_allocator",
+        ":gpu_memory_planner",
         ":gpu_id_impl",
         ":gpu_init_impl",
         ":gpu_lib",
@@ -203,6 +207,42 @@ tf_cuda_library(
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core/common_runtime:bfc_allocator",
         "//tensorflow/core/common_runtime/device:device_mem_allocator",
+    ],
+)
+
+tf_cuda_library(
+    name = "gpu_memory_planner",
+    srcs = [
+        "gpu_memory_planner.cc",
+    ],
+    hdrs = [
+        "gpu_memory_planner.h",
+    ],
+    features = ["parse_headers"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":gpu_tensorpool_allocator",
+        "//tensorflow/core/lib/core:spin_lock",
+        "//tensorflow/core/lib/core:threadpool",
+        "//tensorflow/core/platform:logging",
+        "//tensorflow/core/platform:types",
+        "//tensorflow/core/common_runtime:memory_planner",
+        "//tensorflow/core/common_runtime:size_class",
+    ]
+)
+
+tf_cuda_library(
+    name = "gpu_tensorpool_allocator",
+    srcs = [
+        "gpu_tensorpool_allocator.cc",
+    ],
+    hdrs = [
+        "gpu_tensorpool_allocator.h",
+    ],
+    features = ["parse_headers"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//tensorflow/core/lib/core:spin_lock"
     ],
 )
 

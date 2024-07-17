@@ -477,13 +477,17 @@ struct ProtoHelper<Eigen::half> {
 template <typename T>
 Buffer<T>::Buffer(Allocator* a, int64_t n)
     : BufferBase(a, TypedAllocator::Allocate<T>(a, n, AllocationAttributes())),
-      elem_(n) {}
+      elem_(n) {
+        VLOG(2) << "Creating Buffer with default AllocationAttributes";
+      }
 
 template <typename T>
 Buffer<T>::Buffer(Allocator* a, int64_t n,
                   const AllocationAttributes& allocation_attr)
     : BufferBase(a, TypedAllocator::Allocate<T>(a, n, allocation_attr)),
-      elem_(n) {}
+      elem_(n) {
+        VLOG(2) << "Creating Buffer with given AllocationAttributes";
+      }
 
 template <typename T>
 Buffer<T>::~Buffer() {
@@ -809,6 +813,7 @@ bool Tensor::RefCountIsOne() const {
 
 Tensor::Tensor(Allocator* a, DataType type, const TensorShape& shape)
     : shape_(shape), buf_(nullptr) {
+  VLOG(2) << "Creating Tensor with (allocator, type and shape)";
   set_dtype(type);
   CHECK_NOTNULL(a);
   if (shape_.num_elements() > 0 || a->AllocatesOpaqueHandle()) {
@@ -823,6 +828,7 @@ Tensor::Tensor(Allocator* a, DataType type, const TensorShape& shape)
 Tensor::Tensor(Allocator* a, DataType type, const TensorShape& shape,
                const AllocationAttributes& allocation_attr)
     : shape_(shape), buf_(nullptr) {
+  VLOG(2) << "Creating Tensor with (allocator, type, shape and attr)";
   set_dtype(type);
   CHECK_NOTNULL(a);
   if (shape_.num_elements() > 0 || a->AllocatesOpaqueHandle()) {
