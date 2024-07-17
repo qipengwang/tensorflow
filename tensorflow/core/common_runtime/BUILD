@@ -1899,6 +1899,7 @@ cc_library(
         "//tensorflow/core/lib/core:threadpool",
         "//tensorflow/core/platform:logging",
         "//tensorflow/core/platform:types",
+        "//tensorflow/core/util:env_var",
     ],
 )
 
