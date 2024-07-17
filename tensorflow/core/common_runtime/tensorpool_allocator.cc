@@ -86,7 +86,7 @@ class DefaultCPUSubAllocator : public SubAllocator {
   DefaultCPUSubAllocator() : SubAllocator({}, {}) {}
   ~DefaultCPUSubAllocator() override {}
 
-  void* Alloc(size_t alignment, size_t num_bytes) override {
+  void* Alloc(size_t alignment, size_t num_bytes, size_t* bytes_received) override {
     return port::AlignedMalloc(num_bytes, alignment);
   }
 
@@ -413,10 +413,10 @@ void TensorPoolAllocator::BigDeallocate(Header* header) {
 
 class TensorPoolAllocatorFactory : public AllocatorFactory {
  public:
-  Allocator* CreateAllocator() override { return new TensorPoolAllocator; }
+  Allocator* CreateAllocator() override { return new TensorPoolAllocator(); }
   
   SubAllocator* CreateSubAllocator(int numa_node) override {
-    return new TensorPoolSubAllocator(new TensorPoolAllocator);
+    return new TensorPoolSubAllocator(new TensorPoolAllocator());
   }
 
  private:
