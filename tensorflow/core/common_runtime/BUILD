@@ -238,7 +238,7 @@ filegroup(
         "shared_counter.h",
         "base_collective_executor.h",
         "bfc_allocator.h",
-        "memory_planner.h",
+        # "memory_planner.h",
         "tensorpool_allocator.h",
         "hierarchical_tree_broadcaster.h",
         "buf_rendezvous.h",
@@ -1730,7 +1730,7 @@ tf_cuda_library(
         ":all_to_all",
         ":base_collective_executor",
         ":bfc_allocator",
-        ":memory_planner",
+        # ":memory_planner",
         ":tensorpool_allocator",
         ":buf_rendezvous",
         ":build_graph_options",
@@ -1883,25 +1883,25 @@ cc_library(
 )
 
 
-cc_library(
-    name = "memory_planner",
-    srcs = [
-        "memory_planner.cc",
-    ],
-    hdrs = [
-        "memory_planner.h",
-    ],
-    features = ["parse_headers"],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":tensorpool_allocator",
-        "//tensorflow/core/lib/core:spin_lock",
-        "//tensorflow/core/lib/core:threadpool",
-        "//tensorflow/core/platform:logging",
-        "//tensorflow/core/platform:types",
-        "//tensorflow/core/util:env_var",
-    ],
-)
+# cc_library(
+#     name = "memory_planner",
+#     srcs = [
+#         "memory_planner.cc",
+#     ],
+#     hdrs = [
+#         "memory_planner.h",
+#     ],
+#     features = ["parse_headers"],
+#     visibility = ["//visibility:public"],
+#     deps = [
+#         ":tensorpool_allocator",
+#         "//tensorflow/core/lib/core:spin_lock",
+#         "//tensorflow/core/lib/core:threadpool",
+#         "//tensorflow/core/platform:logging",
+#         "//tensorflow/core/platform:types",
+#         "//tensorflow/core/util:env_var",
+#     ],
+# )
 
 
 cc_library(
@@ -1942,7 +1942,7 @@ tf_cuda_library(
     ],
     copts = tf_copts(),
     deps = [
-        ":memory_planner",
+        # ":memory_planner",
         ":core_cpu_internal",
         "//tensorflow/core:framework",
         "//tensorflow/core:framework_internal",
@@ -1957,7 +1957,7 @@ tf_cuda_library(
         "//tensorflow/core/profiler/lib:device_profiler_session",
         "//tensorflow/core/profiler/lib:profiler_backends",
         "//tensorflow/core/profiler/lib:traceme_encode",
-        "//tensorflow/core/common_runtime/gpu:gpu_memory_planner",
+        # "//tensorflow/core/common_runtime/gpu:gpu_memory_planner",
         "@com_google_absl//absl/container:flat_hash_set",
     ],
     alwayslink = 1,

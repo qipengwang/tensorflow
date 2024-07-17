@@ -75,7 +75,7 @@ class GPULifetimeBin {
   void SmallFit();
   void Cleanup();
 
-  GPUAllocBlock* FindBlock(AllocStats* stats);
+  GPUAllocBlock* FindBlock(AllocStats* stats); // need memory-planner
 
   size_t BlockSize() const;
   size_t ChunkSize() const;
