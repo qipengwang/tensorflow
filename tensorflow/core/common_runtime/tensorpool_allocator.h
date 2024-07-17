@@ -79,6 +79,7 @@ struct LightHeader {
   }
 };
 
+class MemoryPlannerBase;
 class TensorPoolAllocator : public Allocator {
  public:
   TensorPoolAllocator();
