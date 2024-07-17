@@ -208,39 +208,6 @@ inline double Timeval2Double(const timeval& tv) {
 }
 }
 
-
-class LifetimeBin {
- public:
-  LifetimeBin(size_t bin_index, size_t chunk_size);
-  virtual ~LifetimeBin();
-
-  void TrackAllocate(size_t alignment);
-  void TrackDeallocate(AllocStats* stats);
-  size_t TotalMem() const;
-  void Dump() const;
-  bool BestFit(LifetimePolicy* policy);
-  void Cleanup();
-
-  AllocBlock* FindBlock(AllocStats* stats);
-
-  size_t BlockSize() const;
-  size_t ChunkSize() const;
-  size_t Alignment() const;
-  size_t BinIndex() const { return bin_index_; }
-  std::vector<VirtualAllocBlock*>& VBlocks() {
-    return virtual_blocks_;
-  }
-
- private:
-  mutable spin_lock stats_lock_;
-  std::vector<AllocStats*> stats_;
-  std::vector<AllocBlock*> blocks_;
-  std::vector<VirtualAllocBlock*> virtual_blocks_;
-  size_t bin_index_;
-  size_t chunk_size_;
-  int64_t max_alignment_;
-};
-
 class LifetimePolicy {
  public:
   LifetimePolicy(size_t interval, size_t interval_offset, size_t start);
@@ -276,6 +243,39 @@ class LifetimePolicy {
   const size_t start_;
   const size_t large_bin_index_;
 };
+class LifetimeBin {
+ public:
+  LifetimeBin(size_t bin_index, size_t chunk_size);
+  virtual ~LifetimeBin();
+
+  void TrackAllocate(size_t alignment);
+  void TrackDeallocate(AllocStats* stats);
+  size_t TotalMem() const;
+  void Dump() const;
+  bool BestFit(LifetimePolicy* policy);
+  void Cleanup();
+
+  AllocBlock* FindBlock(AllocStats* stats);
+
+  size_t BlockSize() const;
+  size_t ChunkSize() const;
+  size_t Alignment() const;
+  size_t BinIndex() const { return bin_index_; }
+  std::vector<VirtualAllocBlock*>& VBlocks() {
+    return virtual_blocks_;
+  }
+
+ private:
+  mutable spin_lock stats_lock_;
+  std::vector<AllocStats*> stats_;
+  std::vector<AllocBlock*> blocks_;
+  std::vector<VirtualAllocBlock*> virtual_blocks_;
+  size_t bin_index_;
+  size_t chunk_size_;
+  int64_t max_alignment_;
+};
+
+
 
 class MemoryPlannerBase {
  public:
