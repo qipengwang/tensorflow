@@ -203,6 +203,10 @@ void GPUTensorPoolAllocator::BeginStep() {
 
 void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment,
     size_t num_bytes, const AllocationAttributes& allocation_attr) {
+  return AllocateRaw(alignment, num_bytes);
+}
+
+void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
   if (!inited_.load()) {
     size_t bytes_received;
     auto ptr = sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);

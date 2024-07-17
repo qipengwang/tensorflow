@@ -104,7 +104,7 @@ TensorPoolAllocator::TensorPoolAllocator() :
     stats_(false),
     inited_(false),
     initing_(false),
-    sub_allocator_(new DefaultCPUSubAllocator),
+    sub_allocator_(new DefaultCPUSubAllocator()),
     mem_planner_(MemoryPlannerFactory::GetMemoryPlanner()),
     large_bin_index_(0),
     null_bin_counter_(0),

@@ -28,6 +28,7 @@ class GPUTensorPoolAllocator : public Allocator {
 
   string Name() override { return name_; }
   void* AllocateRaw(size_t alignment, size_t num_bytes, const AllocationAttributes& allocation_attr) override;
+  void* AllocateRaw(size_t alignment, size_t num_bytes) override;
   void DeallocateRaw(void* ptr) override;
 
   absl::optional<AllocatorStats> GetStats() override;
