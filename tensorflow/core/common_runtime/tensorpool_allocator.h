@@ -14,6 +14,71 @@
 
 namespace tensorflow {
 
+struct AllocStats {
+  double begin;
+  double end;
+  size_t size;
+  bool IsOverlap(const AllocStats* other);
+};
+
+class AllocBlock {
+ public:
+  AllocBlock(size_t size, size_t bin_index);
+  virtual ~AllocBlock();
+
+  void Insert(AllocStats* alloc_stats);
+  bool CanInsert(AllocStats* alloc_stats);
+  size_t BinIndex() const { return bin_index_; }
+
+ private: 
+  std::vector<AllocStats*> stats_;
+  size_t size_;
+  size_t bin_index_;
+};
+
+class VirtualAllocBlock {
+ public:
+  VirtualAllocBlock(AllocBlock* block, size_t s) :
+    internal_block_(block), size_(s) {
+    }; 
+
+  size_t BinIndex() const {
+    return internal_block_->BinIndex();
+  }
+
+ private:
+  AllocBlock* internal_block_;
+  size_t size_;
+};
+
+
+// >32KB's allocation header
+struct Header {
+  double begin;
+  double end; 
+  void* bin;
+  void* internal_bin;
+  void* raw_ptr;
+  void* user_ptr;
+  size_t total_size;
+  size_t user_size;
+
+  Header() : begin(0), end(0), bin(nullptr), internal_bin(nullptr),
+      raw_ptr(nullptr), user_ptr(nullptr), total_size(0), user_size(0) {
+  }
+};
+ 
+// <32KB's allocation header
+const static std::string CHECK_SUM("AAA"); 
+struct LightHeader {
+  char checksum[4];
+  int32_t header_size;
+
+  explicit LightHeader(size_t hs) : header_size(hs) {
+    memcpy(checksum, CHECK_SUM.c_str(), 4);
+  }
+};
+
 class TensorPoolAllocator : public Allocator {
  public:
   TensorPoolAllocator();
@@ -142,45 +207,8 @@ inline double Timeval2Double(const timeval& tv) {
   return tv.tv_sec * 1000 * 1000 + tv.tv_usec;
 }
 }
-  
-struct AllocStats {
-  double begin;
-  double end;
-  size_t size;
-  bool IsOverlap(const AllocStats* other);
-};
 
-class AllocBlock {
- public:
-  AllocBlock(size_t size, size_t bin_index);
-  virtual ~AllocBlock();
 
-  void Insert(AllocStats* alloc_stats);
-  bool CanInsert(AllocStats* alloc_stats);
-  size_t BinIndex() const { return bin_index_; }
-
- private: 
-  std::vector<AllocStats*> stats_;
-  size_t size_;
-  size_t bin_index_;
-};
-
-class VirtualAllocBlock {
- public:
-  VirtualAllocBlock(AllocBlock* block, size_t s) :
-    internal_block_(block), size_(s) {
-    }; 
-
-  size_t BinIndex() const {
-    return internal_block_->BinIndex();
-  }
-
- private:
-  AllocBlock* internal_block_;
-  size_t size_;
-};
-
-class LifetimePolicy;
 class LifetimeBin {
  public:
   LifetimeBin(size_t bin_index, size_t chunk_size);
@@ -213,7 +241,6 @@ class LifetimeBin {
   int64_t max_alignment_;
 };
 
-class Header;
 class LifetimePolicy {
  public:
   LifetimePolicy(size_t interval, size_t interval_offset, size_t start);
@@ -340,32 +367,7 @@ class ScopedMemoryCollector {
     MemoryPlannerFactory::GetMemoryPlanner()->StopCollect();
   }
 };
-// >32KB's allocation header
-struct Header {
-  double begin;
-  double end; 
-  void* bin;
-  void* internal_bin;
-  void* raw_ptr;
-  void* user_ptr;
-  size_t total_size;
-  size_t user_size;
 
-  Header() : begin(0), end(0), bin(nullptr), internal_bin(nullptr),
-      raw_ptr(nullptr), user_ptr(nullptr), total_size(0), user_size(0) {
-  }
-};
-  
-// <32KB's allocation header
-const static std::string CHECK_SUM("AAA"); 
-struct LightHeader {
-  char checksum[4];
-  int32_t header_size;
-
-  explicit LightHeader(size_t hs) : header_size(hs) {
-    memcpy(checksum, CHECK_SUM.c_str(), 4);
-  }
-};
 
 }
 
