@@ -114,6 +114,7 @@ cc_library(
     hdrs = ["threadpool.h"],
     deps = [
         "//tensorflow/core/platform:env",
+        "@com_google_absl//absl/types:optional",
     ],
 )
 
