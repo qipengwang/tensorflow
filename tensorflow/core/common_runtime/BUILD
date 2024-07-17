@@ -1895,6 +1895,7 @@ cc_library(
     features = ["parse_headers"],
     visibility = ["//visibility:public"],
     deps=[
+        ":size_class",
         "//tensorflow/core/lib/core:spin_lock",
         "//tensorflow/core:framework",
         "//tensorflow/core:framework_internal",
