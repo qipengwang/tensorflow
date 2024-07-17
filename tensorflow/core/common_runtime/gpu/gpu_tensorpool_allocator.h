@@ -31,11 +31,11 @@ inline size_t RoundedBytes(size_t bytes, size_t alignment) {
 }
 }
 
-struct AllocStats {
+struct GPUAllocStats {
   double begin;
   double end;
   size_t size;
-  bool IsOverlap(const AllocStats* other);
+  bool IsOverlap(const GPUAllocStats* other);
 };
 
 class GPUAllocBlock {
@@ -43,13 +43,13 @@ class GPUAllocBlock {
   GPUAllocBlock(size_t size, size_t bin_index);
   virtual ~GPUAllocBlock() {}
 
-  void Insert(AllocStats* alloc_stats);
-  bool CanInsert(AllocStats* alloc_stats);
+  void Insert(GPUAllocStats* alloc_stats);
+  bool CanInsert(GPUAllocStats* alloc_stats);
   size_t BinIndex() const { return bin_index_; }
   void ResetStats();
 
  private:
-  std::vector<AllocStats*> stats_;  // not owned
+  std::vector<GPUAllocStats*> stats_;  // not owned
   size_t size_;
   size_t bin_index_;
 };
@@ -76,7 +76,7 @@ class GPULifetimeBin {
   virtual ~GPULifetimeBin();
 
   void TrackAllocate(size_t alignment);
-  void TrackDeallocate(AllocStats* stats);
+  void TrackDeallocate(GPUAllocStats* stats);
   void BeginStep();
   size_t TotalMem() const;
   void Dump() const;
@@ -84,7 +84,7 @@ class GPULifetimeBin {
   void SmallFit();
   void Cleanup();
 
-  GPUAllocBlock* FindBlock(AllocStats* stats); // need memory-planner
+  GPUAllocBlock* FindBlock(GPUAllocStats* stats); // need memory-planner
 
   size_t BlockSize() const;
   size_t ChunkSize() const;
@@ -98,7 +98,7 @@ class GPULifetimeBin {
 
  private:
   mutable spin_lock stats_lock_;
-  std::vector<AllocStats*> stats_;  // not owned
+  std::vector<GPUAllocStats*> stats_;  // not owned
   std::vector<GPUAllocBlock*> blocks_;
   std::vector<VirtualGPUAllocBlock*> virtual_blocks_;
   size_t bin_index_;
@@ -112,13 +112,13 @@ class GPULifetimePolicy {
   virtual ~GPULifetimePolicy() {};
 
   void TrackAllocate(size_t alignment, size_t num_bytes);
-  void TrackDeallocate(AllocStats* stats);
+  void TrackDeallocate(GPUAllocStats* stats);
   size_t TotalMem() const;
 
   void Dump() const;
   void Cleanup();
 
-  GPUAllocBlock* FindBlock(AllocStats* stats, size_t bin_index);
+  GPUAllocBlock* FindBlock(GPUAllocStats* stats, size_t bin_index);
 
   void BestFit();
   size_t Interval();
@@ -219,8 +219,8 @@ class GPUMemoryPlanner : public GPUMemoryPlannerBase {
   thread::ThreadPool* thread_pool_;
 
   mutable spin_lock stats_lock_;
-  std::unordered_map<void*, AllocStats*> ptr_stats_;
-  std::vector<AllocStats*> alloc_stats_;
+  std::unordered_map<void*, GPUAllocStats*> ptr_stats_;
+  std::vector<GPUAllocStats*> alloc_stats_;
 
   // step information
   std::atomic<int64_t> counter_;

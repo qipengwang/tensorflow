@@ -13,9 +13,22 @@ namespace {
 constexpr int64 DEFAULT_START_STATISTIC_STEP = 10;
 constexpr int64 DEFAULT_STOP_STATISTIC_STEP = 110;
 
-bool AllocTimeCompare(AllocStats* s1, AllocStats*s2) {
+bool AllocTimeCompare(GPUAllocStats* s1, GPUAllocStats*s2) {
   return s1->begin < s2->begin;
 }
+}
+
+bool GPUAllocStats::IsOverlap(const GPUAllocStats* other) {
+  // We counter micro seconds, if equal mean probabaly is overlap.
+  if (begin == other->begin || begin == other->end
+      || end == other->begin || end == other->end) {
+    return true;
+  }
+
+  return ((begin > other->begin &&
+           begin < other->end) ||
+          (begin < other->begin &&
+           end > other->begin));
 }
 
 GPUMemoryPlanner::GPUMemoryPlanner() :
@@ -180,7 +193,7 @@ void GPUMemoryPlanner::TrackAllocate(size_t alignment, size_t num_bytes, void* p
   timeval tmp;
   gettimeofday(&tmp, nullptr);
 
-  auto alloc_stats = new AllocStats;
+  auto alloc_stats = new GPUAllocStats;
   alloc_stats->begin = Timeval2Double(tmp);
   alloc_stats->size = num_bytes;
   {
@@ -205,7 +218,7 @@ void GPUMemoryPlanner::TrackDeallocate(void* ptr) {
   timeval tmp;
   gettimeofday(&tmp, nullptr);
 
-  AllocStats* alloc_stats;
+  GPUAllocStats* alloc_stats;
   {
     std::lock_guard<spin_lock> l(stats_lock_);
     auto iter = ptr_stats_.find(ptr);
@@ -264,7 +277,7 @@ GPULifetimeBin* GPULifetimePolicy::GetBin(size_t index) {
   }
 }
 
-void GPULifetimePolicy::TrackDeallocate(AllocStats* alloc_stats) {
+void GPULifetimePolicy::TrackDeallocate(GPUAllocStats* alloc_stats) {
   auto index = Index(alloc_stats->size, interval_, interval_offset_);
   if (index < 0) {
     LOG(ERROR) << "GPUTensorPoolAllocator Invalid Index:" << index
@@ -332,7 +345,7 @@ void GPULifetimeBin::TrackAllocate(size_t alignment) {
   max_alignment_ = std::max<int64_t>(max_alignment_, alignment);
 }
 
-void GPULifetimeBin::TrackDeallocate(AllocStats* stats) {
+void GPULifetimeBin::TrackDeallocate(GPUAllocStats* stats) {
   // multiple thread enter
   std::lock_guard<spin_lock> l(stats_lock_);
   stats_.emplace_back(stats);
@@ -455,7 +468,7 @@ void GPULifetimeBin::ResetStats() {
   stats_.clear();
 }
 
-GPUAllocBlock* GPULifetimeBin::FindBlock(AllocStats* stats) {
+GPUAllocBlock* GPULifetimeBin::FindBlock(GPUAllocStats* stats) {
   for (auto block : blocks_) {
     if (block->CanInsert(stats)) {
       return block;
@@ -477,7 +490,7 @@ size_t GPULifetimeBin::Alignment() const {
 }
 
 GPUAllocBlock* GPULifetimePolicy::FindBlock(
-    AllocStats* stats, size_t bindex) {
+    GPUAllocStats* stats, size_t bindex) {
   for ( ; bindex < large_bin_index_; ++bindex) {
     auto block = bins_[bindex]->FindBlock(stats);
     if (block != nullptr) {
@@ -520,7 +533,7 @@ GPUAllocBlock::GPUAllocBlock(size_t size, size_t bin_index)
     : size_(size), bin_index_(bin_index) {
 }
 
-bool GPUAllocBlock::CanInsert(AllocStats* alloc_stats) {
+bool GPUAllocBlock::CanInsert(GPUAllocStats* alloc_stats) {
   for (auto s : stats_) {
     if (s->IsOverlap(alloc_stats)) {
       return false;
@@ -529,7 +542,7 @@ bool GPUAllocBlock::CanInsert(AllocStats* alloc_stats) {
   return true;
 }
 
-void GPUAllocBlock::Insert(AllocStats* alloc_stats) {
+void GPUAllocBlock::Insert(GPUAllocStats* alloc_stats) {
   // single thread enter
   stats_.emplace_back(alloc_stats);
 }
