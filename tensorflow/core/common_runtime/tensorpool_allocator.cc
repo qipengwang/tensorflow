@@ -928,5 +928,8 @@ class TensorPoolAllocatorFactory : public AllocatorFactory {
   };
 };
 
+#ifndef REGIST_TENSOR_POOL_ALLOCATOR
+#define REGIST_TENSOR_POOL_ALLOCATOR
 REGISTER_MEM_ALLOCATOR("TensorPoolAllocator", 300, TensorPoolAllocatorFactory);
+#endif
 } // tensorflow
