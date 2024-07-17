@@ -208,6 +208,7 @@ inline double Timeval2Double(const timeval& tv) {
 }
 }
 
+class LifetimeBin;
 class LifetimePolicy {
  public:
   LifetimePolicy(size_t interval, size_t interval_offset, size_t start);
