@@ -6,7 +6,7 @@
 #include "tensorflow/core/lib/core/threadpool.h"
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/types.h"
-#include "tensorflow/core/common_runtime/tensorpool_allocator.h"
+// #include "tensorflow/core/common_runtime/tensorpool_allocator.h"
 #include "tensorflow/core/common_runtime/size_class.h"
 #include "tensorflow/core/util/env_var.h"
 
@@ -30,6 +30,13 @@ inline size_t RoundedBytes(size_t bytes, size_t alignment) {
   return alignment * ((bytes + alignment - 1) / alignment);
 }
 }
+
+struct AllocStats {
+  double begin;
+  double end;
+  size_t size;
+  bool IsOverlap(const AllocStats* other);
+};
 
 class GPUAllocBlock {
  public:

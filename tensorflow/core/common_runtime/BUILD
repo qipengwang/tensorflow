@@ -1883,26 +1883,6 @@ cc_library(
 )
 
 
-# cc_library(
-#     name = "memory_planner",
-#     srcs = [
-#         "memory_planner.cc",
-#     ],
-#     hdrs = [
-#         "memory_planner.h",
-#     ],
-#     features = ["parse_headers"],
-#     visibility = ["//visibility:public"],
-#     deps = [
-#         ":tensorpool_allocator",
-#         "//tensorflow/core/lib/core:spin_lock",
-#         "//tensorflow/core/lib/core:threadpool",
-#         "//tensorflow/core/platform:logging",
-#         "//tensorflow/core/platform:types",
-#         "//tensorflow/core/util:env_var",
-#     ],
-# )
-
 
 cc_library(
     name = "tensorpool_allocator",
