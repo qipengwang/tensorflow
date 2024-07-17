@@ -1916,6 +1916,10 @@ cc_library(
     visibility = ["//visibility:public"],
     deps=[
         "//tensorflow/core/lib/core:spin_lock",
+        "//tensorflow/core:framework",
+        "//tensorflow/core:framework_internal",
+        "//tensorflow/core:lib",
+        "//tensorflow/core:lib_internal",
         "@com_google_absl//absl/types:optional",
     ]
 )
