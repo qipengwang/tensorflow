@@ -246,10 +246,12 @@ class GPUMemoryPlannerFactory {
 
 class GPUScopedMemoryCollector {
  public:
-  GPUScopedMemoryCollector() {
+  GPUScopedMemoryCollector(std::string filename = "DEFAULT", int line = -1) {
+    VLOG(1) << "GPUScopedMemoryCollector starts collect memory allocation info at " << filename << ":" << line;
     GPUMemoryPlannerFactory::GetMemoryPlanner()->StartCollect();
   }
   ~GPUScopedMemoryCollector() {
+    VLOG(1) << "GPUScopedMemoryCollector stops collect memory allocation info";
     GPUMemoryPlannerFactory::GetMemoryPlanner()->StopCollect();
   }
 };

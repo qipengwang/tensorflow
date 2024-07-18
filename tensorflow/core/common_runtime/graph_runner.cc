@@ -107,6 +107,7 @@ Status GraphRunner::Run(Graph* graph, FunctionLibraryRuntime* function_library,
   if (device_ == nullptr) {
     return errors::NotFound("Cannot find a device for GraphRunner.");
   }
+  VLOG(1) << "Calling GraphRunner::Run at " << __FILE__ << ":" << __LINE__;
 
   if (function_library && function_library->device() &&
       function_library->device()->device_type() != device_->device_type()) {
@@ -186,6 +187,7 @@ Status GraphRunner::Run(Graph* graph, FunctionLibraryRuntime* function_library,
   args.cancellation_manager = &cancellation_manager;
 
   // Run the graph.
+  VLOG(1) << "Call Executor::Run at " << __FILE__ << ":" << __LINE__;
   TF_RETURN_IF_ERROR(executor->Run(args));
 
   outputs->resize(output_names.size());

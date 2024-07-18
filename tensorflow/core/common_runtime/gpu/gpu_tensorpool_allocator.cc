@@ -608,6 +608,7 @@ GPUTensorPoolAllocator::~GPUTensorPoolAllocator() {
 
 void GPUTensorPoolAllocator::Init() {
   bool tmp = false;
+  // this function is executed only once ensured by ``compare_exchange_strong''
   if (initing_.compare_exchange_strong(tmp, true)) {
     auto lifetime_policy = mem_planner_->BestLifetimePolicy();
 
@@ -761,6 +762,7 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment,
 }
 
 void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
+  VLOG(1) << "Calling GPUTensorpoolallocator::AllocateRaw, env PRMALLOC_STAGE is " << std::getenv("PRMALLOC_STAGE");
   if (!inited_.load()) {
     size_t bytes_received;
     auto ptr = sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);

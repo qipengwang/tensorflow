@@ -1371,7 +1371,7 @@ void ExecutorImpl::RunAsync(const Args& args, DoneCallback done) {
 
 Status Executor::Run(const Executor::Args& args) {
   ScopedMemoryCollector scoped_memory_collector;
-  GPUScopedMemoryCollector gpu_scoped_memory_collector;
+  GPUScopedMemoryCollector gpu_scoped_memory_collector(__FILE__, __LINE__);
   Status ret;
   Notification n;
   RunAsync(args, [&ret, &n](const Status& s) {

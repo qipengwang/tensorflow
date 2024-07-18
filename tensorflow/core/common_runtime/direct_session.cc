@@ -729,6 +729,7 @@ Status DirectSession::RunInternal(
 
     const auto& item = executors_and_keys->items[0];
     set_threadpool_args_for_item(item, &args);
+    VLOG(1) << "Call Executor::Run at " << __FILE__ << ":" << __LINE__;
     run_status = item.executor->Run(args);
   } else {
     core::RefCountPtr<RefCountedIntraProcessRendezvous> rendezvous(
@@ -888,7 +889,7 @@ Status DirectSession::Run(const RunOptions& run_options,
     mutex_lock l(collective_graph_key_lock_);
     collective_graph_key_ = executors_and_keys->collective_graph_key;
     if (EnableTensorPoolTracking(executors_and_keys)) {
-      scoped_memory_collector_gpu_ptr.reset(new GPUScopedMemoryCollector);
+      scoped_memory_collector_gpu_ptr.reset(new GPUScopedMemoryCollector(__FILE__, __LINE__));
     }
   }
 
@@ -1616,6 +1617,7 @@ Status DirectSession::CreateGraphs(
   if (finalized_) {
     return errors::FailedPrecondition("Session has been finalized.");
   }
+  VLOG(1) << "Calling DirectSession::CreateGraphs at " << __FILE__ << ":" << __LINE__;
 
   std::unique_ptr<ClientGraph> client_graph;
 

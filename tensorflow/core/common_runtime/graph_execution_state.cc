@@ -607,6 +607,7 @@ Status GraphExecutionState::PruneGraph(
 }
 
 Status GraphExecutionState::InitBaseGraph(std::unique_ptr<Graph>&& new_graph) {
+  VLOG(1) << "Calling  GraphExecutionState::InitBaseGraph at " << __FILE__ << ":" << __LINE__;
   // Save stateful placements before placing.
   RestoreStatefulNodes(new_graph.get());
 

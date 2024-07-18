@@ -64,6 +64,7 @@ Status OptimizationPassRegistry::RunGrouping(
       for (auto& pass : phase.second) {
         VLOG(1) << "Running optimization pass: " << pass->name();
         const uint64 pass_start_us = Env::Default()->NowMicros();
+        VLOG(1) << "Call ??::Run at " << __FILE__ << ":" << __LINE__;
         Status s = pass->Run(options);
         const uint64 pass_end_us = Env::Default()->NowMicros();
         metrics::UpdateGraphOptimizationPassTime(pass->name(),

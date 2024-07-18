@@ -174,7 +174,7 @@ void Worker::DoRunGraph(CallOptions* opts, RunGraphRequestWrapper* request,
     return;
   }
   ScopedMemoryCollector scoped_memory_collector;
-  GPUScopedMemoryCollector gpu_scoped_memory_collector;
+  GPUScopedMemoryCollector gpu_scoped_memory_collector(__FILE__, __LINE__);
 
   std::shared_ptr<WorkerSession> session;
   if (request->create_worker_session_called()) {

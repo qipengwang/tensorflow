@@ -1379,6 +1379,7 @@ Status FunctionLibraryRuntimeImpl::RunSync(Options opts, Handle handle,
   TF_RETURN_IF_ERROR(frame.SetArgs(args));
   ExecutorArgsFromOptions(opts, &frame, &exec_args);
 
+  VLOG(1) << "Call Executor::Run at " << __FILE__ << ":" << __LINE__;
   TF_RETURN_IF_ERROR(item->exec->Run(exec_args));
   return frame.ConsumeRetvals(rets, opts.allow_dead_tensors);
 }
@@ -1394,6 +1395,7 @@ Status FunctionLibraryRuntimeImpl::RunSync(Options opts, Handle handle,
 
   Executor::Args exec_args;
   ExecutorArgsFromOptions(opts, call_frame, &exec_args);
+  VLOG(1) << "Call Executor::Run at " << __FILE__ << ":" << __LINE__;
   return item->exec->Run(exec_args);
 }
 
