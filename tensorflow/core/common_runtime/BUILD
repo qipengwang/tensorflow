@@ -627,6 +627,10 @@ cc_library(
         ":renamed_device",
         ":simple_propagator_state",
         ":step_stats_collector",
+        ":tensorpool_allocator",
+        "//tensorflow/core/lib/core:spin_lock",
+        "//tensorflow/core/common_runtime/gpu:gpu_tensorpool_allocator",
+        "//tensorflow/core/common_runtime:size_class",
         "//tensorflow/core:framework",
         "//tensorflow/core:framework_internal",
         "//tensorflow/core:graph",
@@ -877,6 +881,9 @@ cc_library(
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
         "//tensorflow/core:protos_all_cc",
+        "//tensorflow/core/lib/core:spin_lock",
+        ":size_class",
+        "//tensorflow/core/common_runtime/gpu:gpu_tensorpool_allocator",
     ] + if_static([
         ":executor",
         ":rendezvous_mgr",
@@ -1925,6 +1932,7 @@ tf_cuda_library(
     deps = [
         # ":memory_planner",
         ":core_cpu_internal",
+        ":tensorpool_allocator",
         "//tensorflow/core:framework",
         "//tensorflow/core:framework_internal",
         "//tensorflow/core:graph",

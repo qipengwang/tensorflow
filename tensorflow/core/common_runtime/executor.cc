@@ -73,6 +73,8 @@ limitations under the License.
 #include "tensorflow/core/profiler/lib/traceme_encode.h"
 #include "tensorflow/core/protobuf/error_codes.pb.h"
 #include "tensorflow/core/util/tensor_slice_reader_cache.h"
+#include "tensorflow/core/common_runtime/tensorpool_allocator.h"
+#include "tensorflow/core/common_runtime/gpu/gpu_tensorpool_allocator.h"
 
 namespace tensorflow {
 
@@ -1366,6 +1368,19 @@ void ExecutorImpl::RunAsync(const Args& args, DoneCallback done) {
 }
 
 }  // namespace
+
+Status Executor::Run(const Executor::Args& args) {
+  ScopedMemoryCollector scoped_memory_collector;
+  GPUScopedMemoryCollector gpu_scoped_memory_collector;
+  Status ret;
+  Notification n;
+  RunAsync(args, [&ret, &n](const Status& s) {
+    ret = s;
+    n.Notify();
+  });
+  n.WaitForNotification();
+  return ret;
+}
 
 Status NewLocalExecutor(const LocalExecutorParams& params, const Graph& graph,
                         Executor** executor) {

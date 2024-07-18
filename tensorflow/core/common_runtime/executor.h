@@ -121,16 +121,19 @@ class Executor {
   virtual void RunAsync(const Args& args, DoneCallback done) = 0;
 
   // Synchronous wrapper for RunAsync().
-  virtual Status Run(const Args& args) {
-    Status ret;
-    Notification n;
-    RunAsync(args, [&ret, &n](const Status& s) {
-      ret = s;
-      n.Notify();
-    });
-    n.WaitForNotification();
-    return ret;
-  }
+  virtual Status Run(const Args& args);
+  // virtual Status Run(const Args& args) {
+  //   ScopedMemoryCollector scoped_memory_collector;
+  //   GPUScopedMemoryCollector gpu_scoped_memory_collector;
+  //   Status ret;
+  //   Notification n;
+  //   RunAsync(args, [&ret, &n](const Status& s) {
+  //     ret = s;
+  //     n.Notify();
+  //   });
+  //   n.WaitForNotification();
+  //   return ret;
+  // }
 };
 
 // Creates an Executor that computes the given "graph".
