@@ -103,7 +103,7 @@ GPULifetimeBin* GPUMemoryPlanner::GetSmallBin(size_t size) {
 }
 
 void GPUMemoryPlanner::Reset() {
-  counter_ = 0;
+  counter_.store(0);
   Cleanup();
 }
 
@@ -117,10 +117,10 @@ void GPUMemoryPlanner::StartCollect() {
   VLOG(1) << "GPUMemoryPlanner::StartCollect with current step is " << current 
           << " start_step is " << start_step_ << " stop_step is " << stop_step_;
   if (current == start_step_) {
-    is_stats_ = true;
+    is_stats_.store(true);
   } else if (current == stop_step_) {
     VLOG(1) << "call GPUMemoryPlanner::CollectDone";
-    is_stats_ = false;
+    is_stats_.store(false);
     CollectDone();
   }
   if (allocator_ != nullptr) {
@@ -162,8 +162,8 @@ void GPUMemoryPlanner::CollectDone() {
       allocator_->Init();
     }
     Cleanup();
-    inited_ = true;
-    VLOG(1) << "CollectDone and set inited_ to true";
+    inited_.store(true);
+    VLOG(1) << "CollectDone and set inited_ to " << inited_.load();
   });
 }
 
@@ -752,7 +752,7 @@ void GPUTensorPoolAllocator::Init() {
       small_bins_[b->BinIndex()] = bin;
     }
 
-    inited_ = true;
+    inited_.store(true);
   }
 }
 
