@@ -589,7 +589,7 @@ GPUTensorPoolAllocator::GPUTensorPoolAllocator(
     initing_(false),
     step_id_(-1),
     sub_allocator_(sub_allocator),
-    mem_planner_(GPUMemoryPlannerFactory::GetMemoryPlanner()),
+    mem_planner_(nullptr),
     large_bin_index_(0),
     null_bin_counter_(0),
     hit_counter_(0),
@@ -598,6 +598,14 @@ GPUTensorPoolAllocator::GPUTensorPoolAllocator(
     big_mem_end_(nullptr),
     small_mem_begin_(nullptr),
     small_mem_end_(nullptr) {
+  bool enable_memory_opt_ = true;
+  ReadBoolFromEnvVar("ENABLE_MEMORY_OPTIMIZATION", true, &enable_memory_opt_);
+  if (enable_memory_opt_) {
+    //LOG(INFO_DEV) << "Enable Memory Optimization!";
+    mem_planner_ = new GPUMemoryPlanner();
+  } else {
+    mem_planner_ = new NullableGPUMemoryPlanner();
+  }
   mem_planner_->SetAllocator(this);
   alloc_stats_.bytes_limit = static_cast<int64>(total_memory);
 }
