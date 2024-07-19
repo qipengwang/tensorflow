@@ -114,11 +114,12 @@ void GPUMemoryPlanner::StartCollect() {
   }
 
   auto current = counter_.fetch_add(1);
-  VLOG(1) << "StartCollect with current step is " << current 
+  VLOG(1) << "GPUMemoryPlanner::StartCollect with current step is " << current 
           << " start_step is " << start_step_ << " stop_step is " << stop_step_;
   if (current == start_step_) {
     is_stats_ = true;
   } else if (current == stop_step_) {
+    VLOG(1) << "call GPUMemoryPlanner::CollectDone";
     is_stats_ = false;
     CollectDone();
   }
@@ -157,10 +158,12 @@ void GPUMemoryPlanner::StopCollect() {
 void GPUMemoryPlanner::CollectDone() {
   Schedule([this]() {
     if (allocator_ != nullptr) {
+      VLOG(1) << "CollectDone and call allocator_->Init()";
       allocator_->Init();
     }
     Cleanup();
     inited_ = true;
+    VLOG(1) << "CollectDone and set inited_ to true";
   });
 }
 
