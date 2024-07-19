@@ -753,7 +753,7 @@ void GPUTensorPoolAllocator::Init() {
     }
 
     inited_.store(true);
-    VLOG(1) << "GPUTensorPoolAllocator init done and set inited_ to " << inited_.load();
+    VLOG(1) << name_ <<" GPUTensorPoolAllocator init done and set inited_ to " << inited_.load();
   }
 }
 
@@ -781,21 +781,23 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment,
 }
 
 void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
-  VLOG(1) << "Calling GPUTensorpoolallocator::AllocateRaw, env PRMALLOC_STAGE is " << std::getenv("PRMALLOC_STAGE");
+  VLOG(1) << name_ << " Calling GPUTensorpoolallocator::AllocateRaw, env PRMALLOC_STAGE is " << std::getenv("PRMALLOC_STAGE");
   auto current_step = GlobalStepFromEnv();
   if (step_id_.load() != current_step) {
     VLOG(1) << name_ << " Calling GPUTensorpoolallocator::AllocateRaw, step_id is " << step_id_.load() << ", current_step is " << current_step << std::endl;
     mem_planner_->StartCollect();
     step_id_.store(current_step);
+    VLOG(1) << name_ << " after planner.collect, inited_ is " << inited_.load();
   }
+  VLOG(1) << name_ << " Calling GPUTensorPoolAllocator::AllocateRaw with inited_ " << inited_.load();
   if (!inited_.load()) {
-    VLOG(1) << "GPUTensorPoolAllocator: Allocate from OS directly";
+    VLOG(1) << name_ << " GPUTensorPoolAllocator: Allocate from OS directly";
     size_t bytes_received;
     auto ptr = sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
     mem_planner_->TrackAllocate(alignment, num_bytes, ptr);
     return ptr;
   }
-  VLOG(1) << "GPUTensorPoolAllocator: using optimized allocation planner";
+  VLOG(1) << name_ << " GPUTensorPoolAllocator: using optimized allocation planner";
 
   if (SmallAlloc(num_bytes)) {
     return SmallAllocate(alignment, num_bytes);
