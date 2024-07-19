@@ -753,6 +753,7 @@ void GPUTensorPoolAllocator::Init() {
     }
 
     inited_.store(true);
+    VLOG(1) << "GPUTensorPoolAllocator init done and set inited_ to " << inited_.load();
   }
 }
 
