@@ -369,6 +369,8 @@ class GPUTensorPoolAllocator : public Allocator {
   std::atomic_bool inited_;
   std::atomic_bool initing_;
 
+  std::atomic_int step_id_;
+
   std::unique_ptr<SubAllocator> sub_allocator_;
   GPUMemoryPlannerBase* mem_planner_;
 

@@ -16,6 +16,18 @@ constexpr int64 DEFAULT_STOP_STATISTIC_STEP = 110;
 bool AllocTimeCompare(GPUAllocStats* s1, GPUAllocStats*s2) {
   return s1->begin < s2->begin;
 }
+
+int GlobalStepFromEnv() {
+  const char* global_step = getenv("GLOBAL_STEP");
+  if (global_step == nullptr) {
+    return -1;
+  }
+  string integer_str(global_step, strlen(global_step));
+  std::istringstream ss(integer_str);
+  int step = -1;
+  ss >> step;
+  return step;
+}
 }
 
 bool GPUAllocStats::IsOverlap(const GPUAllocStats* other) {
@@ -570,6 +582,7 @@ GPUTensorPoolAllocator::GPUTensorPoolAllocator(
     stats_(false),
     inited_(false),
     initing_(false),
+    step_id_(-1),
     sub_allocator_(sub_allocator),
     mem_planner_(GPUMemoryPlannerFactory::GetMemoryPlanner()),
     large_bin_index_(0),
@@ -763,12 +776,20 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment,
 
 void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
   VLOG(1) << "Calling GPUTensorpoolallocator::AllocateRaw, env PRMALLOC_STAGE is " << std::getenv("PRMALLOC_STAGE");
+  auto current_step = GlobalStepFromEnv();
+  if (step_id_.load() != current_step) {
+    VLOG(1) << "Calling GPUTensorpoolallocator::AllocateRaw, step_id is " << step_id_.load() << ", current_step is " << current_step << std::endl;
+    mem_planner_->StartCollect();
+    step_id_.store(current_step);
+  }
   if (!inited_.load()) {
+    VLOG(1) << "GPUTensorPoolAllocator: Allocate from OS directly";
     size_t bytes_received;
     auto ptr = sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
     mem_planner_->TrackAllocate(alignment, num_bytes, ptr);
     return ptr;
   }
+  VLOG(1) << "GPUTensorPoolAllocator: using optimized allocation planner";
 
   if (SmallAlloc(num_bytes)) {
     return SmallAllocate(alignment, num_bytes);
