@@ -114,6 +114,8 @@ void GPUMemoryPlanner::StartCollect() {
   }
 
   auto current = counter_.fetch_add(1);
+  VLOG(1) << "StartCollect with current step is " << current 
+          << " start_step is " << start_step_ << " stop_step is " << stop_step_;
   if (current == start_step_) {
     is_stats_ = true;
   } else if (current == stop_step_) {
@@ -778,7 +780,7 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
   VLOG(1) << "Calling GPUTensorpoolallocator::AllocateRaw, env PRMALLOC_STAGE is " << std::getenv("PRMALLOC_STAGE");
   auto current_step = GlobalStepFromEnv();
   if (step_id_.load() != current_step) {
-    VLOG(1) << "Calling GPUTensorpoolallocator::AllocateRaw, step_id is " << step_id_.load() << ", current_step is " << current_step << std::endl;
+    VLOG(1) << name_ << " Calling GPUTensorpoolallocator::AllocateRaw, step_id is " << step_id_.load() << ", current_step is " << current_step << std::endl;
     mem_planner_->StartCollect();
     step_id_.store(current_step);
   }
