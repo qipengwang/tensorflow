@@ -73,6 +73,7 @@ void Worker::RegisterGraphAsync(const RegisterGraphRequest* request,
                                 RegisterGraphResponse* response,
                                 StatusCallback done) {
   MemoryPlannerFactory::GetMemoryPlanner()->SetThreadPool(env_->compute_pool);
+  GPUMemoryPlannerFactory::GetMemoryPlanner()->SetThreadPool(env_->compute_pool);
   std::shared_ptr<WorkerSession> session;
   Status s;
   if (request->create_worker_session_called()) {
