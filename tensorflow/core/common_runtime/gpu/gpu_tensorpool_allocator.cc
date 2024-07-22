@@ -217,6 +217,7 @@ void GPUMemoryPlanner::TrackAllocate(size_t alignment, size_t num_bytes, void* p
     std::lock_guard<spin_lock> l(stats_lock_);
     ptr_stats_[ptr] = alloc_stats;
   }
+  VLOG(0) << "TrackAllocate with ptr " << ptr << " size " << num_bytes << " allocated at " << Timeval2Double(tmp);
 
   if (SmallAlloc(num_bytes)) {
     GetSmallBin(num_bytes)->TrackAllocate(alignment);
@@ -248,6 +249,7 @@ void GPUMemoryPlanner::TrackDeallocate(void* ptr) {
   }
   alloc_stats->end = Timeval2Double(tmp);
 
+  VLOG(0) << "TrackDeallocate with ptr " << ptr << " deallocated at " << Timeval2Double(tmp);
   if (SmallAlloc(alloc_stats->size)) {
     GetSmallBin(alloc_stats->size)->TrackDeallocate(alloc_stats);
     return;
@@ -370,8 +372,7 @@ void GPULifetimeBin::TrackDeallocate(GPUAllocStats* stats) {
 
 void GPULifetimePolicy::BestFit() {
   std::lock_guard<spin_lock> l(large_bin_lock_);
-  for (auto it = large_bins_.rbegin();
-      it != large_bins_.rend(); ++it) {
+  for (auto it = large_bins_.rbegin(); it != large_bins_.rend(); ++it) {
     auto bin_info = it->second;
     bin_info->BestFit(this);
   }
@@ -506,8 +507,7 @@ size_t GPULifetimeBin::Alignment() const {
   return max_alignment_;
 }
 
-GPUAllocBlock* GPULifetimePolicy::FindBlock(
-    GPUAllocStats* stats, size_t bindex) {
+GPUAllocBlock* GPULifetimePolicy::FindBlock(GPUAllocStats* stats, size_t bindex) {
   for ( ; bindex < large_bin_index_; ++bindex) {
     auto block = bins_[bindex]->FindBlock(stats);
     if (block != nullptr) {
@@ -515,8 +515,7 @@ GPUAllocBlock* GPULifetimePolicy::FindBlock(
     }
   }
   // no need to lock, BestFit already hold large_bin_lock_ firstly
-  for (auto it = large_bins_.lower_bound(bindex);
-      it != large_bins_.end(); ++it) {
+  for (auto it = large_bins_.lower_bound(bindex); it != large_bins_.end(); ++it) {
     auto block = (it->second)->FindBlock(stats);
     if (block != nullptr) {
       return block;
@@ -642,16 +641,15 @@ void GPUTensorPoolAllocator::Init() {
     alignment_offset_ = lifetime_policy->AlignmentOffset();
 
     big_bytes_ = 0;
-    std::map<size_t, size_t> bin_to_offset;
+    std::map<size_t, size_t> bin_to_offset;  // bin_index to offset
 
-    auto policy_bins = lifetime_policy->GetBins();
+    auto policy_bins = lifetime_policy->GetBins(); // small bins
     large_bin_index_ = policy_bins.size();
     lifetime_bins_.resize(large_bin_index_);
 
     size_t max_alignment = 0;
 
-    for (auto it = policy_bins.begin(); it != policy_bins.end();
-        ++it) {
+    for (auto it = policy_bins.begin(); it != policy_bins.end(); ++it) {
       if ((*it)->BlockSize() > 0) {
         // add padding between two bins
         big_bytes_ = RoundedBytes(big_bytes_, (*it)->Alignment());
@@ -662,8 +660,7 @@ void GPUTensorPoolAllocator::Init() {
     }
 
     auto policy_large_bins = lifetime_policy->GetLargeBins();
-    for (auto it = policy_large_bins.begin();
-        it != policy_large_bins.end(); ++it) {
+    for (auto it = policy_large_bins.begin(); it != policy_large_bins.end(); ++it) {
       auto bin_info = it->second;
       if (bin_info->BlockSize() > 0) {
         // add padding between two bins
@@ -677,8 +674,7 @@ void GPUTensorPoolAllocator::Init() {
     size_t bytes_received;
     big_mem_begin_ = sub_allocator_->Alloc(max_alignment, big_bytes_, &bytes_received);
     if (big_bytes_ > 0 && big_mem_begin_ == nullptr) {
-      LOG(FATAL) << "OOM!!! Try to alloc("
-                 << max_alignment << ", " << big_bytes_ << ")";
+      LOG(FATAL) << "OOM!!! Try to alloc(" << max_alignment << ", " << big_bytes_ << ")";
     }
     if (big_bytes_ > 0) {
       big_mem_end_ = static_cast<char*>(big_mem_begin_) + big_bytes_;
@@ -687,8 +683,7 @@ void GPUTensorPoolAllocator::Init() {
     }
 
     // create bigger bin first
-    for (auto rit = policy_large_bins.rbegin();
-        rit != policy_large_bins.rend(); ++rit) {
+    for (auto rit = policy_large_bins.rbegin(); rit != policy_large_bins.rend(); ++rit) {
       auto bin_info = rit->second;
       Bin* bin = nullptr;
       if (bin_info->BlockSize() > 0) {
@@ -707,8 +702,7 @@ void GPUTensorPoolAllocator::Init() {
       }
     }
 
-    for (auto it = policy_bins.rbegin(); it != policy_bins.rend();
-        ++it) {
+    for (auto it = policy_bins.rbegin(); it != policy_bins.rend(); ++it) {
       Bin* bin = nullptr;
       if ((*it)->BlockSize() > 0) {
         auto offset = bin_to_offset[(*it)->BinIndex()];
@@ -740,8 +734,7 @@ void GPUTensorPoolAllocator::Init() {
 
     small_mem_begin_ = sub_allocator_->Alloc(max_alignment, small_bytes_, &bytes_received);
     if (small_bytes_ > 0 && small_mem_begin_ == nullptr) {
-      LOG(FATAL) << "OOM!!! Try to alloc("
-                 << max_alignment << ", " << small_bytes_ << ")";
+      LOG(FATAL) << "OOM!!! Try to alloc(" << max_alignment << ", " << small_bytes_ << ")";
     }
     if (small_bytes_ > 0) {
       small_mem_end_ = static_cast<char*>(small_mem_begin_) + small_bytes_;
