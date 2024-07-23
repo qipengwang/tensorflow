@@ -120,7 +120,9 @@ void GPUMemoryPlanner::Reset() {
 }
 
 void GPUMemoryPlanner::StartCollect() {
+  // std::lock_guard<spin_lock> l(collect_lock_);
   if (is_stats_.load()) {
+    VLOG(0) << "call BestFit() of planner " << this;
     BestFit();
     ResetStats();
   }
@@ -702,6 +704,7 @@ void GPUTensorPoolAllocator::Init() {
       }
     }
 
+    VLOG(0) << "big_bytes_ " << big_bytes_ << " max_alignment " << max_alignment;
     size_t bytes_received;
     big_mem_begin_ = sub_allocator_->Alloc(max_alignment, big_bytes_, &bytes_received);
     if (big_bytes_ > 0 && big_mem_begin_ == nullptr) {

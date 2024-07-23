@@ -220,6 +220,7 @@ class GPUMemoryPlanner : public GPUMemoryPlannerBase {
   thread::ThreadPool* thread_pool_;
 
   mutable spin_lock stats_lock_;
+  mutable spin_lock collect_lock_;
   std::unordered_map<void*, GPUAllocStats*> ptr_stats_;
   std::vector<GPUAllocStats*> alloc_stats_;
 
