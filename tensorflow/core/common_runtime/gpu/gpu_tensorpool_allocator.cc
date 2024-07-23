@@ -657,7 +657,11 @@ void GPUTensorPoolAllocator::Init() {
     size_t max_alignment = 0;
 
     for (auto it = policy_bins.begin(); it != policy_bins.end(); ++it) {
+      VLOG(0) << "bin index " << (*it)->BinIndex() << " block size " << (*it)->BlockSize() << " chunksize " << (*it)->ChunkSize()
+              << " alignment " << (*it)->Alignment();
       if ((*it)->BlockSize() > 0) {
+        VLOG(0) << "\tbin index " << (*it)->BinIndex() << " block size " << (*it)->BlockSize() << " chunksize " << (*it)->ChunkSize() 
+                  << " alignment " << (*it)->Alignment() << " totalMemory " << (*it)->TotalMem();
         // add padding between two bins
         big_bytes_ = RoundedBytes(big_bytes_, (*it)->Alignment());
         bin_to_offset[(*it)->BinIndex()] = big_bytes_;
@@ -669,7 +673,11 @@ void GPUTensorPoolAllocator::Init() {
     auto policy_large_bins = lifetime_policy->GetLargeBins();
     for (auto it = policy_large_bins.begin(); it != policy_large_bins.end(); ++it) {
       auto bin_info = it->second;
+      VLOG(0) << "bin index " << bin_info->BinIndex() << " block size " << bin_info->BlockSize() << " chunksize " << bin_info->ChunkSize()
+              << " alignment " << bin_info->Alignment();
       if (bin_info->BlockSize() > 0) {
+        VLOG(0) << "\tbin index " << bin_info->BinIndex() << " block size " << bin_info->BlockSize() << " chunksize " << bin_info->ChunkSize()
+                << " alignment " << bin_info->Alignment() << " totalMemory " << bin_info->TotalMem();
         // add padding between two bins
         big_bytes_ = RoundedBytes(big_bytes_, bin_info->Alignment());
         bin_to_offset[bin_info->BinIndex()] = big_bytes_;
