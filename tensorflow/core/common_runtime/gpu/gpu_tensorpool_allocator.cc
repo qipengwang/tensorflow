@@ -143,9 +143,11 @@ void GPUMemoryPlanner::StartCollect() {
 
 void GPUMemoryPlanner::BestFit() {
   for (auto policy : lifetime_stats_polices_) {
+    VLOG(0) << "BestFit with policy " << policy;
     policy->BestFit();
   }
   for (auto bin : small_bins_) {
+    VLOG(0) << "SmallFit with bin " << bin;
     bin->SmallFit();
   }
 }
@@ -391,11 +393,11 @@ void GPULifetimePolicy::BestFit() {
   std::lock_guard<spin_lock> l(large_bin_lock_);
   for (auto it = large_bins_.rbegin(); it != large_bins_.rend(); ++it) {
     auto bin_info = it->second;
-    VLOG(0) << "BestFit of large bin:" << bin_info->BinIndex();
+    VLOG(0) << "BestFit of policy large bin:" << bin_info->BinIndex();
     bin_info->BestFit(this);
   }
   for (auto it = bins_.rbegin(); it != bins_.rend(); ++it) {
-    VLOG(0) << "BestFit of small bin:" << (*it)->BinIndex();
+    VLOG(0) << "BestFit of policy small bin:" << (*it)->BinIndex();
     (*it)->BestFit(this);
   }
 }
@@ -487,6 +489,7 @@ void GPULifetimeBin::SmallFit() {
     return;
   }
   for (auto s : stats_) {
+    VLOG(0) << "Bin.SmallFit of State " << s->DebugString();
     auto block = FindBlock(s);
     if (block != nullptr) {
       block->Insert(s);
