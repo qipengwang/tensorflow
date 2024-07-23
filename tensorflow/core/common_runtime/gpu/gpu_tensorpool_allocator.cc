@@ -56,6 +56,7 @@ GPUMemoryPlanner::GPUMemoryPlanner() :
     allocator_(nullptr),
     thread_pool_(nullptr),
     counter_(0),
+    logic_step_(0),
     start_step_(DEFAULT_START_STATISTIC_STEP),
     stop_step_(DEFAULT_STOP_STATISTIC_STEP) {
   InitStepInfo();
@@ -133,6 +134,7 @@ void GPUMemoryPlanner::StartCollect() {
   if (allocator_ != nullptr) {
     allocator_->BeginStep();
   }
+  logic_step_.store(0);
 }
 
 void GPUMemoryPlanner::BestFit() {
@@ -217,11 +219,13 @@ void GPUMemoryPlanner::TrackAllocate(size_t alignment, size_t num_bytes, void* p
   timeval tmp;
   gettimeofday(&tmp, nullptr);
 
-  auto alloc_stats = new GPUAllocStats;
-  alloc_stats->begin = Timeval2Double(tmp);
-  alloc_stats->size = num_bytes;
   {
     std::lock_guard<spin_lock> l(stats_lock_);
+    auto alloc_stats = new GPUAllocStats;
+    // alloc_stats->begin = Timeval2Double(tmp);
+    alloc_stats->begin = logic_step_;
+    logic_step_.fetch_add(1);
+    alloc_stats->size = num_bytes;
     ptr_stats_[ptr] = alloc_stats;
   }
   VLOG(0) << "TrackAllocate with ptr " << ptr << " size " << num_bytes << " allocated at " << doubleToStringWithoutScientificNotation(Timeval2Double(tmp));
@@ -253,8 +257,10 @@ void GPUMemoryPlanner::TrackDeallocate(void* ptr) {
     alloc_stats = iter->second;
     ptr_stats_.erase(iter);
     alloc_stats_.emplace_back(alloc_stats);
+    // alloc_stats->end = Timeval2Double(tmp);
+    alloc_stats->end = logic_step_;
+    logic_step_.fetch_add(1);
   }
-  alloc_stats->end = Timeval2Double(tmp);
 
   VLOG(0) << "TrackDeallocate with ptr " << ptr << " deallocated at " << doubleToStringWithoutScientificNotation(Timeval2Double(tmp));
   if (SmallAlloc(alloc_stats->size)) {

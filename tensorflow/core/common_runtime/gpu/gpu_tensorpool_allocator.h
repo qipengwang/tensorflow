@@ -224,6 +224,7 @@ class GPUMemoryPlanner : public GPUMemoryPlannerBase {
 
   // step information
   std::atomic<int64_t> counter_;
+  std::atomic<int64_t> logic_step_;
   int64 start_step_;
   int64 stop_step_;
   std::atomic_bool inited_;
