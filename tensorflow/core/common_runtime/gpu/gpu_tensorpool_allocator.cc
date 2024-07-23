@@ -1014,12 +1014,14 @@ void* GPUTensorPoolAllocator::SmallAllocate(size_t alignment, size_t num_bytes) 
   auto bin = GetSmallBin(num_bytes);
   size_t bytes_received;
   if (unlikely(bin == nullptr)) {
+    VLOG(0) << "call SmallAllocate but still require from OS because bin is nullptr";
     return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
   }
   auto ptr = bin->AllocateRaw();
   if (likely(ptr != nullptr)) {
     return ptr;
   }
+  VLOG(0) << "call SmallAllocate but still require from OS";
   return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
 }
 
@@ -1028,11 +1030,13 @@ void* GPUTensorPoolAllocator::BigAllocate(size_t alignment,
   size_t bytes_received;
   auto id = Index(num_bytes, alignment_, alignment_offset_);
   if (unlikely(id < 0)) {
+    VLOG(0) << "call BigAllocate but still require from OS beacuse id < 0";
     return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
   }
 
   auto b = GetBin(id);
   if (unlikely(b == nullptr)) {
+    VLOG(0) << "call BigAllocate but still require from OS beacuse bin is nullptr";
     return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
   }
 
@@ -1041,21 +1045,23 @@ void* GPUTensorPoolAllocator::BigAllocate(size_t alignment,
     return ptr;
   }
 
+  VLOG(0) << "call BigAllocate but still require from OS";
   return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
 }
 
 // unlikely execute this path which do some atomic operations
-void* GPUTensorPoolAllocator::BigAllocateStatistic(size_t alignment,
-    size_t num_bytes) {
+void* GPUTensorPoolAllocator::BigAllocateStatistic(size_t alignment, size_t num_bytes) {
   size_t bytes_received;
   auto id = Index(num_bytes, alignment_, alignment_offset_);
   if (unlikely(id < 0)) {
+    VLOG(0) << "call BigAllocateStatistic but still require from OS because id < 0";
     return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
   }
 
   auto b = GetBin(id);
   if (unlikely(b == nullptr)) {
     ++null_bin_counter_;
+    VLOG(0) << "call BigAllocateStatistic but still require from OS because bin is nullptr";
     return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
   }
 
@@ -1066,6 +1072,7 @@ void* GPUTensorPoolAllocator::BigAllocateStatistic(size_t alignment,
   }
 
   ++missed_counter_;
+  VLOG(0) << "call BigAllocateStatistic but still require from OS";
   return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
 }
 
