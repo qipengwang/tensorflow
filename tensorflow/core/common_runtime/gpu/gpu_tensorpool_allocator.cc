@@ -3,6 +3,7 @@
 #include "tensorflow/core/platform/mem.h"
 #include <sys/time.h>
 #include <iostream>
+#include <iomanip>
 
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
