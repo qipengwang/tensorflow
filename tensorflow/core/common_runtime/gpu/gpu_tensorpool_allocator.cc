@@ -50,6 +50,10 @@ bool GPUAllocStats::IsOverlap(const GPUAllocStats* other) {
            end > other->begin));
 }
 
+std::string GPUAllocStats::DebugString() {
+  return "(" + std::to_string(begin) + ", " + std::to_string(end) + "; " + std::to_string(size) + ")";
+}
+
 GPUMemoryPlanner::GPUMemoryPlanner() :
     is_stats_(false),
     inited_(false),
@@ -387,9 +391,11 @@ void GPULifetimePolicy::BestFit() {
   std::lock_guard<spin_lock> l(large_bin_lock_);
   for (auto it = large_bins_.rbegin(); it != large_bins_.rend(); ++it) {
     auto bin_info = it->second;
+    VLOG(0) << "BestFit of large bin:" << bin_info->index_;
     bin_info->BestFit(this);
   }
   for (auto it = bins_.rbegin(); it != bins_.rend(); ++it) {
+    VLOG(0) << "BestFit of small bin:" << (*it)->index_;
     (*it)->BestFit(this);
   }
 }
@@ -456,6 +462,7 @@ void GPULifetimeBin::BestFit(GPULifetimePolicy* policy) {
   // sort by alloc time
   std::sort(stats_.begin(), stats_.end(), AllocTimeCompare);
   for (auto s : stats_) {
+    VLOG(0) << "Bin.BestFit of State " << s->DebugString();
     auto block = FindBlock(s);
     if (block != nullptr) {
       block->Insert(s);

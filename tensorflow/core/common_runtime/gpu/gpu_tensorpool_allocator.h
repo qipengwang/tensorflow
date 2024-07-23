@@ -36,6 +36,7 @@ struct GPUAllocStats {
   double end;
   size_t size;
   bool IsOverlap(const GPUAllocStats* other);
+  std::string DebugString();
 };
 
 class GPUAllocBlock {
