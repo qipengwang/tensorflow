@@ -391,11 +391,11 @@ void GPULifetimePolicy::BestFit() {
   std::lock_guard<spin_lock> l(large_bin_lock_);
   for (auto it = large_bins_.rbegin(); it != large_bins_.rend(); ++it) {
     auto bin_info = it->second;
-    VLOG(0) << "BestFit of large bin:" << bin_info->index_;
+    VLOG(0) << "BestFit of large bin:" << bin_info->BinIndex();
     bin_info->BestFit(this);
   }
   for (auto it = bins_.rbegin(); it != bins_.rend(); ++it) {
-    VLOG(0) << "BestFit of small bin:" << (*it)->index_;
+    VLOG(0) << "BestFit of small bin:" << (*it)->BinIndex();
     (*it)->BestFit(this);
   }
 }
