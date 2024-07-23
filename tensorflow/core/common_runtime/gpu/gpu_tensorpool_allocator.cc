@@ -28,6 +28,12 @@ int GlobalStepFromEnv() {
   ss >> step;
   return step;
 }
+
+std::string doubleToStringWithoutScientificNotation(double value, int precision=5) {
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(precision) << value;
+    return oss.str();
+}
 }
 
 bool GPUAllocStats::IsOverlap(const GPUAllocStats* other) {
@@ -217,7 +223,7 @@ void GPUMemoryPlanner::TrackAllocate(size_t alignment, size_t num_bytes, void* p
     std::lock_guard<spin_lock> l(stats_lock_);
     ptr_stats_[ptr] = alloc_stats;
   }
-  VLOG(0) << "TrackAllocate with ptr " << ptr << " size " << num_bytes << " allocated at " << Timeval2Double(tmp);
+  VLOG(0) << "TrackAllocate with ptr " << ptr << " size " << num_bytes << " allocated at " << doubleToStringWithoutScientificNotation(Timeval2Double(tmp));
 
   if (SmallAlloc(num_bytes)) {
     GetSmallBin(num_bytes)->TrackAllocate(alignment);
@@ -249,7 +255,7 @@ void GPUMemoryPlanner::TrackDeallocate(void* ptr) {
   }
   alloc_stats->end = Timeval2Double(tmp);
 
-  VLOG(0) << "TrackDeallocate with ptr " << ptr << " deallocated at " << Timeval2Double(tmp);
+  VLOG(0) << "TrackDeallocate with ptr " << ptr << " deallocated at " << doubleToStringWithoutScientificNotation(Timeval2Double(tmp));
   if (SmallAlloc(alloc_stats->size)) {
     GetSmallBin(alloc_stats->size)->TrackDeallocate(alloc_stats);
     return;
