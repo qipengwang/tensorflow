@@ -658,7 +658,7 @@ GPUTensorPoolAllocator::~GPUTensorPoolAllocator() {
   }
   if (fallback_allocator_ != nullptr) {
     fallback_allocator_.reset();
-    fallback_allocations.clear();
+    fallback_allocations_.clear();
   }
 }
 
@@ -859,9 +859,10 @@ void GPUTensorPoolAllocator::DeallocateRaw(void* ptr) {
     BigDeallocate(ptr);
   } else if (IsSmallOwned(ptr)) {
     SmallDeallocate(ptr);
-  } else if (fallback_allocations.find(ptr) != fallback_allocations.end()) {
+  } else if (fallback_allocations_.find(ptr) != fallback_allocations_.end()) {
     // sub_allocator_->Free(ptr, 0);
     fallback_allocator_->DeallocateRaw(ptr);
+    fallback_allocations_.erase(ptr);
   } else {
     sub_allocator_->Free(ptr, 0);
   }
@@ -1058,6 +1059,7 @@ void* GPUTensorPoolAllocator::SmallAllocate(size_t alignment, size_t num_bytes) 
   if (unlikely(bin == nullptr)) {
     // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
     auto ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
+    fallback_allocations_.insert(ptr);
     VLOG(0) << "call SmallAllocate but still require from OS for " << num_bytes << " bytes because bin is nullptr and get " << ptr;
     return ptr;
   }
@@ -1065,7 +1067,8 @@ void* GPUTensorPoolAllocator::SmallAllocate(size_t alignment, size_t num_bytes) 
   if (likely(ptr != nullptr)) {
     return ptr;
   }
-  auto prt = fallback_allocator_->AllocateRaw(alignment, num_bytes);
+  ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
+  fallback_allocations_.insert(ptr);
   VLOG(0) << "call SmallAllocate but still require from OS for " << num_bytes << " bytes and get " << ptr;
   // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
   return ptr;
@@ -1077,6 +1080,7 @@ void* GPUTensorPoolAllocator::BigAllocate(size_t alignment, size_t num_bytes) {
   if (unlikely(id < 0)) {
     // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
     auto ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
+    fallback_allocations_.insert(ptr);
     VLOG(0) << "call BigAllocate but still require from OS for " << num_bytes << " bytes beacuse id < 0 and get " << ptr;
     return ptr;
   }
@@ -1085,6 +1089,7 @@ void* GPUTensorPoolAllocator::BigAllocate(size_t alignment, size_t num_bytes) {
   if (unlikely(b == nullptr)) {
     // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
     auto ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
+    fallback_allocations_.insert(ptr);
     VLOG(0) << "call BigAllocate but still require from OS for " << num_bytes << " bytes beacuse bin is nullptr and get " << ptr;
     return ptr;
   }
@@ -1095,7 +1100,8 @@ void* GPUTensorPoolAllocator::BigAllocate(size_t alignment, size_t num_bytes) {
   }
 
   // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
-  auto ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
+  ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
+  fallback_allocations_.insert(ptr);
   VLOG(0) << "call BigAllocate but still require from OS for " << num_bytes << " bytes and get " << ptr;
   return ptr;
 }
@@ -1107,6 +1113,7 @@ void* GPUTensorPoolAllocator::BigAllocateStatistic(size_t alignment, size_t num_
   if (unlikely(id < 0)) {
     // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
     auto ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
+    fallback_allocations_.insert(ptr);
     VLOG(0) << "call BigAllocateStatistic but still require from OS for " << num_bytes << " bytes because id < 0 and get " << ptr;
     return ptr;
   }
@@ -1116,6 +1123,7 @@ void* GPUTensorPoolAllocator::BigAllocateStatistic(size_t alignment, size_t num_
     ++null_bin_counter_;
     // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
     auto ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
+    fallback_allocations_.insert(ptr);
     VLOG(0) << "call BigAllocateStatistic but still require from OS for " << num_bytes << " bytes because bin is nullptr and get " << ptr;
     return ptr;
   }
@@ -1128,7 +1136,8 @@ void* GPUTensorPoolAllocator::BigAllocateStatistic(size_t alignment, size_t num_
 
   ++missed_counter_;
   // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
-  auto ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
+  ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
+  fallback_allocations_.insert(ptr);
   VLOG(0) << "call BigAllocateStatistic but still require from OS for " << num_bytes << " bytes and get " << ptr;
   return ptr;
 }
