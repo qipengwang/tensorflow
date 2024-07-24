@@ -120,7 +120,7 @@ void GPUMemoryPlanner::Reset() {
 }
 
 void GPUMemoryPlanner::StartCollect() {
-  // std::lock_guard<spin_lock> l(collect_lock_);
+  // std::lock_guard<spin_lock> l(allocate_lock_);
   if (is_stats_.load()) {
     VLOG(0) << allocator_->Name() << " at " << allocator_ << " call BestFit() of planner " << this;
     BestFit();
@@ -823,25 +823,24 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment,
 
 void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
   // VLOG(1) << name_ << " Calling AllocateRaw, env PRMALLOC_STAGE is " << std::getenv("PRMALLOC_STAGE");
-  {
-    std::lock_guard<spin_lock> l(collect_lock_);
-    auto current_step = GlobalStepFromEnv();
-    if (step_id_.load() != current_step) {
-      // VLOG(1) << name_ << " Calling AllocateRaw, step_id is " << step_id_.load() << ", current_step is " << current_step << std::endl;
-      mem_planner_->StartCollect();
-      step_id_.store(current_step);
-      VLOG(0) << name_ << " Calling AllocateRaw, after planner.collect, step_id is " << step_id_.load() << ", current_step is " << current_step << " inited_ is " << inited_.load();
-    }
-    VLOG(0) << name_ << " Calling AllocateRaw with inited_ " << inited_.load();
-    if (!inited_.load()) {
-      VLOG(0) << name_ << " Calling AllocateRaw: Allocate from OS directly, requiring " << num_bytes << " bytes";
-      size_t bytes_received;
-      auto ptr = sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
-      mem_planner_->TrackAllocate(alignment, num_bytes, ptr);
-      return ptr;
-    }
-    VLOG(0) << name_ << " Calling AllocateRaw: using optimized allocation planner, requiring " << num_bytes << " bytes";
+  std::lock_guard<spin_lock> l(allocate_lock_);
+  auto current_step = GlobalStepFromEnv();
+  if (step_id_.load() != current_step) {
+    // VLOG(1) << name_ << " Calling AllocateRaw, step_id is " << step_id_.load() << ", current_step is " << current_step << std::endl;
+    mem_planner_->StartCollect();
+    step_id_.store(current_step);
+    VLOG(0) << name_ << " Calling AllocateRaw, after planner.collect, step_id is " << step_id_.load() << ", current_step is " << current_step << " inited_ is " << inited_.load();
   }
+  VLOG(0) << name_ << " Calling AllocateRaw with inited_ " << inited_.load();
+  if (!inited_.load()) {
+    VLOG(0) << name_ << " Calling AllocateRaw: Allocate from OS directly, requiring " << num_bytes << " bytes";
+    size_t bytes_received;
+    auto ptr = sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+    mem_planner_->TrackAllocate(alignment, num_bytes, ptr);
+    return ptr;
+  }
+  VLOG(0) << name_ << " Calling AllocateRaw: using optimized allocation planner, requiring " << num_bytes << " bytes";
+
   if (SmallAlloc(num_bytes)) {
     return SmallAllocate(alignment, num_bytes);
   } else if (unlikely(stats_)) {
@@ -852,6 +851,7 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
 }
 
 void GPUTensorPoolAllocator::DeallocateRaw(void* ptr) {
+  std::lock_guard<spin_lock> l(free_lock_);
   if (!inited_.load()) {
     mem_planner_->TrackDeallocate(ptr);
     sub_allocator_->Free(ptr, 0);

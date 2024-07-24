@@ -221,7 +221,7 @@ class GPUMemoryPlanner : public GPUMemoryPlannerBase {
   thread::ThreadPool* thread_pool_;
 
   mutable spin_lock stats_lock_;
-  mutable spin_lock collect_lock_;
+  mutable spin_lock allocate_lock_;
   std::unordered_map<void*, GPUAllocStats*> ptr_stats_;
   std::vector<GPUAllocStats*> alloc_stats_;
 
@@ -365,7 +365,7 @@ class GPUTensorPoolAllocator : public Allocator {
 
  private:
   mutable spin_lock free_lock_;
-  mutable spin_lock collect_lock_;
+  mutable spin_lock allocate_lock_;
   std::vector<void*> async_free_list_;
   string name_;
   AllocatorStats alloc_stats_;
