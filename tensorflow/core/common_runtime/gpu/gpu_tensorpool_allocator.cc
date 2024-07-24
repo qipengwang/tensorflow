@@ -607,13 +607,14 @@ GPUMemoryPlannerFactory::GPUMemoryPlannerFactory() {
 }
 
 GPUTensorPoolAllocator::GPUTensorPoolAllocator(
-      SubAllocator* sub_allocator, string name, size_t total_memory) :
+      SubAllocator* sub_allocator, GPUBFCAllocator* bfc_allocator, string name, size_t total_memory) :
     name_(name),
     stats_(false),
     inited_(false),
     initing_(false),
     step_id_(-1),
     sub_allocator_(sub_allocator),
+    bfc_allocator_(bfc_allocator),
     mem_planner_(nullptr),
     large_bin_index_(0),
     null_bin_counter_(0),
@@ -654,6 +655,9 @@ GPUTensorPoolAllocator::~GPUTensorPoolAllocator() {
     if (bin != nullptr) {
       delete bin;
     }
+  }
+  if (bfc_allocator_ != nullptr) {
+    bfc_allocator_.reset();
   }
 }
 
@@ -839,8 +843,7 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
   }
   if (SmallAlloc(num_bytes)) {
     return SmallAllocate(alignment, num_bytes);
-  }
-  if (unlikely(stats_)) {
+  } else if (unlikely(stats_)) {
     return BigAllocateStatistic(alignment, num_bytes);
   } else {
     return BigAllocate(alignment, num_bytes);
@@ -856,7 +859,8 @@ void GPUTensorPoolAllocator::DeallocateRaw(void* ptr) {
   } else if (IsSmallOwned(ptr)) {
     SmallDeallocate(ptr);
   } else {
-    sub_allocator_->Free(ptr, 0);
+    // sub_allocator_->Free(ptr, 0);
+    bfc_allocator_->DeallocateRaw(ptr);
   }
 }
 
@@ -864,8 +868,7 @@ absl::optional<AllocatorStats> GPUTensorPoolAllocator::GetStats() {
   return alloc_stats_;
 }
 
-GPUTensorPoolAllocator::Bin* GPUTensorPoolAllocator::GetBin(
-    size_t bin_index) {
+GPUTensorPoolAllocator::Bin* GPUTensorPoolAllocator::GetBin(size_t bin_index) {
   if (unlikely(bin_index < 0)) {
     return nullptr;
   }
@@ -1018,8 +1021,7 @@ void GPUTensorPoolAllocator::VirtualBuffer::BeginStep() {
 
 void GPUTensorPoolAllocator::DumpStats() {
   if (stats_) {
-    double hit_rate = (double)hit_counter_ /
-      (hit_counter_ + missed_counter_ + null_bin_counter_);
+    double hit_rate = (double)hit_counter_ / (hit_counter_ + missed_counter_ + null_bin_counter_);
     LOG(INFO) << "If you're TensorFlow user, "
       << "please ignore following debugging statistic."
       << "GPUTensorPoolAllocator Statistic:"
@@ -1051,30 +1053,33 @@ void* GPUTensorPoolAllocator::SmallAllocate(size_t alignment, size_t num_bytes) 
   auto bin = GetSmallBin(num_bytes);
   size_t bytes_received;
   if (unlikely(bin == nullptr)) {
-    VLOG(0) << "call SmallAllocate but still require from OS because bin is nullptr";
-    return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+    VLOG(0) << "call SmallAllocate but still require from OS for " << num_bytes << " bytes because bin is nullptr";
+    // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+    return bfc_allocator_->AllocateRaw(alignment, num_bytes);
   }
   auto ptr = bin->AllocateRaw();
   if (likely(ptr != nullptr)) {
     return ptr;
   }
-  VLOG(0) << "call SmallAllocate but still require from OS";
-  return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+  VLOG(0) << "call SmallAllocate but still require from OS for " << num_bytes << " bytes";
+  // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+  return bfc_allocator_->AllocateRaw(alignment, num_bytes);
 }
 
-void* GPUTensorPoolAllocator::BigAllocate(size_t alignment,
-    size_t num_bytes) {
+void* GPUTensorPoolAllocator::BigAllocate(size_t alignment, size_t num_bytes) {
   size_t bytes_received;
   auto id = Index(num_bytes, alignment_, alignment_offset_);
   if (unlikely(id < 0)) {
-    VLOG(0) << "call BigAllocate but still require from OS beacuse id < 0";
-    return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+    VLOG(0) << "call BigAllocate but still require from OS for " << num_bytes << " bytes beacuse id < 0";
+    // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+    return bfc_allocator_->AllocateRaw(alignment, num_bytes);
   }
 
   auto b = GetBin(id);
   if (unlikely(b == nullptr)) {
-    VLOG(0) << "call BigAllocate but still require from OS beacuse bin is nullptr";
-    return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+    VLOG(0) << "call BigAllocate but still require from OS for " << num_bytes << " bytes beacuse bin is nullptr";
+    // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+    return bfc_allocator_->AllocateRaw(alignment, num_bytes);
   }
 
   auto ptr = b->Allocate();
@@ -1082,8 +1087,9 @@ void* GPUTensorPoolAllocator::BigAllocate(size_t alignment,
     return ptr;
   }
 
-  VLOG(0) << "call BigAllocate but still require from OS";
-  return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+  VLOG(0) << "call BigAllocate but still require from OS for " << num_bytes << " bytes";
+  // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+  return bfc_allocator_->AllocateRaw(alignment, num_bytes);
 }
 
 // unlikely execute this path which do some atomic operations
@@ -1091,15 +1097,17 @@ void* GPUTensorPoolAllocator::BigAllocateStatistic(size_t alignment, size_t num_
   size_t bytes_received;
   auto id = Index(num_bytes, alignment_, alignment_offset_);
   if (unlikely(id < 0)) {
-    VLOG(0) << "call BigAllocateStatistic but still require from OS because id < 0";
-    return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+    VLOG(0) << "call BigAllocateStatistic but still require from OS for " << num_bytes << " bytes because id < 0";
+    // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+    return bfc_allocator_->AllocateRaw(alignment, num_bytes);
   }
 
   auto b = GetBin(id);
   if (unlikely(b == nullptr)) {
     ++null_bin_counter_;
-    VLOG(0) << "call BigAllocateStatistic but still require from OS because bin is nullptr";
-    return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+    VLOG(0) << "call BigAllocateStatistic but still require from OS for " << num_bytes << " bytes because bin is nullptr";
+    // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+    return bfc_allocator_->AllocateRaw(alignment, num_bytes);
   }
 
   auto ptr = b->Allocate();
@@ -1109,8 +1117,9 @@ void* GPUTensorPoolAllocator::BigAllocateStatistic(size_t alignment, size_t num_
   }
 
   ++missed_counter_;
-  VLOG(0) << "call BigAllocateStatistic but still require from OS";
-  return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+  VLOG(0) << "call BigAllocateStatistic but still require from OS for " << num_bytes << " bytes";
+  // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+  return bfc_allocator_->AllocateRaw(alignment, num_bytes);
 }
 
 void GPUTensorPoolAllocator::SmallDeallocate(void* ptr) {

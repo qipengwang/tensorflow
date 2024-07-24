@@ -9,6 +9,7 @@
 // #include "tensorflow/core/common_runtime/tensorpool_allocator.h"
 #include "tensorflow/core/common_runtime/size_class.h"
 #include "tensorflow/core/util/env_var.h"
+#include "tensorflow/core/common_runtime/gpu/gpu_bfc_allocator.h"
 
 #include <atomic>
 #include <map>
@@ -261,7 +262,7 @@ class GPUScopedMemoryCollector {
 
 class GPUTensorPoolAllocator : public Allocator {
  public:
-  GPUTensorPoolAllocator(SubAllocator* sub_allocator, string name,
+  GPUTensorPoolAllocator(SubAllocator* sub_allocator, GPUBFCAllocator* bfc_allocator, string name,
                       size_t total_memory);
   ~GPUTensorPoolAllocator() override;
 
@@ -376,6 +377,7 @@ class GPUTensorPoolAllocator : public Allocator {
   std::atomic_int step_id_;
 
   std::unique_ptr<SubAllocator> sub_allocator_;
+  std::unique_ptr<GPUBFCAllocator> bfc_allocator_;
   GPUMemoryPlannerBase* mem_planner_;
 
   size_t large_bin_index_;

@@ -242,6 +242,7 @@ tf_cuda_library(
     features = ["parse_headers"],
     visibility = ["//visibility:public"],
     deps = [
+        ":gpu_bfc_allocator",
         "//tensorflow/core/lib/core:spin_lock",
         "//tensorflow/core:framework",
         "//tensorflow/core:framework_internal",
