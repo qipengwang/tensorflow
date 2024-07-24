@@ -262,7 +262,7 @@ class GPUScopedMemoryCollector {
 
 class GPUTensorPoolAllocator : public Allocator {
  public:
-  GPUTensorPoolAllocator(SubAllocator* sub_allocator, GPUBFCAllocator* bfc_allocator, string name,
+  GPUTensorPoolAllocator(SubAllocator* sub_allocator, Allocator* fallback_allocator, string name,
                       size_t total_memory);
   ~GPUTensorPoolAllocator() override;
 
@@ -377,7 +377,7 @@ class GPUTensorPoolAllocator : public Allocator {
   std::atomic_int step_id_;
 
   std::unique_ptr<SubAllocator> sub_allocator_;
-  std::unique_ptr<GPUBFCAllocator> bfc_allocator_;
+  std::unique_ptr<Allocator> fallback_allocator_;
   GPUMemoryPlannerBase* mem_planner_;
 
   size_t large_bin_index_;
@@ -396,6 +396,7 @@ class GPUTensorPoolAllocator : public Allocator {
   void *small_mem_begin_;
   void *small_mem_end_;
   std::map<size_t, SmallBin*> offset_to_small_bin_;
+  std::set<void*> fallback_allocations_;
 
   // Statistic
   std::atomic<int64_t> null_bin_counter_;
