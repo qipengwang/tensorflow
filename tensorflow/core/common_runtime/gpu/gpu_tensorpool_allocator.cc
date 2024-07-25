@@ -862,7 +862,7 @@ void GPUTensorPoolAllocator::DeallocateRaw(void* ptr) {
   } else if (fallback_allocations_.find(ptr) != fallback_allocations_.end()) {
     // sub_allocator_->Free(ptr, 0);
     fallback_allocator_->DeallocateRaw(ptr);
-    fallback_allocations_.erase(ptr);
+    // fallback_allocations_.erase(ptr);
   } else {
     sub_allocator_->Free(ptr, 0);
   }
