@@ -628,9 +628,9 @@ void* GPUTreeMemoryManager::AllocateBuffer(size_t N) override {
   total_size_ += N;
   std::shared_ptr<Node> node(new Node);
   node->size = N;
-  node->parent = ptr;
-  node->outside = allocator_ptr_.get();
-  mUsedList[ptr] = node;
+  node->pointer = ptr;
+  node->outside_allocator = allocator_ptr_.get();
+  used_list_[ptr] = node;
   return ptr;
 }
 

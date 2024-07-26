@@ -295,7 +295,7 @@ class GPUTreeMemoryManager : public GPUMemoryManager {
     std::shared_ptr<Node> parent = nullptr;
     size_t size = 0;
     size_t use_ount = 0;
-    std::shared_ptr<Allocator> outsizd_allocator = nullptr;
+    std::shared_ptr<Allocator> outside_allocator = nullptr;
   };
 
   typedef std::multimap<size_t, std::shared_ptr<Node>> FREELIST;
