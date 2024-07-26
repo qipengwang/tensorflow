@@ -262,8 +262,8 @@ class GPUScopedMemoryCollector {
 
 class GPUMemoryManager {
  public:
-  virtual GPUTreeMemoryManager(Allocator* allocator_) = 0;
-  virtual ~GPUTreeMemoryManager() = 0;
+  GPUTreeMemoryManager(Allocator* allocator_) {};
+  ~GPUTreeMemoryManager() {};
   virtual void* AllocateBuffer(size_t N) = 0;
   virtual void ReleaseBuffer(void* ptr) = 0;
 };
@@ -281,8 +281,8 @@ class GPUTreeMemoryManager : public GPUMemoryManager {
    * If the use_count becomes 0, it means that all the sub-nodes are free, just merge them into a larger Node. 
    */
  public:
-  virtual GPUTreeMemoryManager(Allocator* allocator_) override;
-  virtual ~GPUTreeMemoryManager() override;
+  GPUTreeMemoryManager(Allocator* allocator_);
+  ~GPUTreeMemoryManager();
   virtual void* AllocateBuffer(size_t N) override;
   virtual void ReleaseBuffer(void* ptr) override;
 
