@@ -971,13 +971,9 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
   }
   VLOG(0) << name_ << " Calling AllocateRaw: using optimized allocation planner, requiring " << num_bytes << " bytes";
 
-  auto real_num_bytes = RoundedBytes(num_bytes, alignment);
-  void* ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
-  VLOG(0) << name_ << "Calling fallback_memory_manager_ to alloc " << real_num_bytes << " Bytes and got " << ptr;
-  return ptr;
-  if (SmallAlloc(num_bytes) && false) {
+  if (SmallAlloc(num_bytes)) {
     return SmallAllocate(alignment, num_bytes);
-  } else if (unlikely(stats_) && false) {
+  } else if (unlikely(stats_)) {
     return BigAllocateStatistic(alignment, num_bytes);
   } else {
     return BigAllocate(alignment, num_bytes);
@@ -990,13 +986,16 @@ void GPUTensorPoolAllocator::DeallocateRaw(void* ptr) {
     mem_planner_->TrackDeallocate(ptr);
     sub_allocator_->Free(ptr, 0);
     directly_allocated_pointers_.erase(ptr);
-  } else if (IsBigOwned(ptr) && false) {
+  } else if (IsBigOwned(ptr)) {
     BigDeallocate(ptr);
-  } else if (IsSmallOwned(ptr) && false) {
+  } else if (IsSmallOwned(ptr)) {
     SmallDeallocate(ptr);
   } else if (fallback_memory_manager_->IsAllocatedBuffer(ptr)) {
     fallback_memory_manager_->ReleaseBuffer(ptr);
   } else {
+    if (directly_allocated_pointers_.find(ptr) == directly_allocated_pointers_.end()) {
+      LOG(FATAL) << "DeallocateRaw Error: Unknown pointer " << ptr;
+    }
     sub_allocator_->Free(ptr, 0);
     directly_allocated_pointers_.erase(ptr);
   }
