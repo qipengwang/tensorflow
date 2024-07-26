@@ -606,15 +606,121 @@ GPUMemoryPlannerFactory::GPUMemoryPlannerFactory() {
   }
 }
 
+GPUTreeMemoryManager::GPUTreeMemoryManager(Allocator* allocator_) override
+    : allocator_ptr_(allocator_) {}
+
+GPUTreeMemoryManager::~GPUTreeMemoryManager() override {
+  used_list_.clear();
+  free_list_.clear();
+  total_size_ = 0;
+}
+
+void* GPUTreeMemoryManager::AllocateBuffer(size_t N) override {
+  void* ptr = getFromFreeList(N);
+  if (nullptr != ptr) {
+      return ptr;
+  }
+  // alloc otherwise
+  void* ptr = allocator_ptr_->AllocateRaw(N, 1);
+  if (nullptr == ptr) {
+      return ptr;
+  }
+  total_size_ += N;
+  std::shared_ptr<Node> node(new Node);
+  node->size = N;
+  node->parent = ptr;
+  node->outside = allocator_ptr_.get();
+  mUsedList[ptr] = node;
+  return ptr;
+}
+
+void GPUTreeMemoryManager::ReleaseBuffer(void* ptr) override {
+  auto iter = used_list_.find(ptr_size);
+  if (iter == used_list_.end()) {
+    LOG(FATAL) << "GPUTreeMemoryManager Invalid Release Buffer: " 
+               << ptr_size.first << ", " << ptr_size.second;
+    return;
+  }
+  // mark as reusable
+  auto node = iter->second;
+  used_list_.erase(iter);
+  returnMemory(node);
+}
+
+void GPUTreeMemoryManager::returnMemory(std::shared_ptr<Node> node) {
+  free_list_.insert(std::make_pair(node->size, node));
+  if (nullptr != node->parent.get()) {
+    auto parent = node->parent;
+    parent->useCount -= 1;
+    // merge if all subnodes were freed
+    auto needMerge = parent->useCount == 0;
+    while (needMerge) {
+      // collect all subnodes
+      for (auto iter = free_list_.begin(); iter != free_list_.end();) {
+        if (iter->second->parent.get() == parent.get()) {
+          iter = free_list_.erase(iter);
+        } else {
+          iter++;
+        }
+      }
+
+      // do merge downside up
+      free_list_.insert(std::make_pair(parent->size, parent));
+      needMerge = false;
+      if (parent->parent.get() != nullptr) {
+          parent = parent->parent;
+          parent->useCount -= 1;
+          needMerge = parent->useCount == 0;
+      }
+    }
+  }
+}
+
+void* GPUTreeMemoryManager::GetFromFreeList(size_t N) {
+  // get node larger than size
+  auto iter = free_list_.lower_bound(N);  //  iter point to pair(size_t, std::shared_ptr<Node>)
+  if (iter == free_list_.end()) {
+    return nullptr;
+  }
+  // update parent use count
+  auto node = iter->second;
+  if (node->parent.get() != nullptr) {
+    node->parent->useCount += 1;
+  }
+
+  if (iter->first == N) { // lower_bound  ensure iter->first>=N
+    // uses up all aligned space
+    used_list_.insert(std::make_pair(node->size, node));
+    free_list_.erase(iter);
+    return node->pointer;
+  }
+
+  // split otherwise, the non-root Node does not hold the outside_allocator_
+  std::shared_ptr<Node> first(new Node);
+  first->parent = node;
+  first->size = N;
+  first->pointer = node->pointer;
+  used_list_.insert(std::make_pair(first->pointer_size_pair, first));
+  node->useCount += 1;
+
+  std::shared_ptr<Node> second(new Node);
+  second->parent = node;
+  second->size = node->size - N;
+  second->pointer = (void*)((uint8_t*)node->pointer + N);
+  free_list_.erase(iter);
+  free_list_.insert(std::make_pair(second->size, second));
+  return node->pointer;
+}
+
+
 GPUTensorPoolAllocator::GPUTensorPoolAllocator(
-      SubAllocator* sub_allocator, Allocator* fallback_allocator, string name, size_t total_memory) :
+      SubAllocator* sub_allocator, std::string name, size_t total_memory) :
     name_(name),
     stats_(false),
     inited_(false),
     initing_(false),
     step_id_(-1),
     sub_allocator_(sub_allocator),
-    fallback_allocator_(fallback_allocator),
     mem_planner_(nullptr),
     large_bin_index_(0),
     null_bin_counter_(0),
@@ -634,6 +740,7 @@ GPUTensorPoolAllocator::GPUTensorPoolAllocator(
   }
   mem_planner_->SetAllocator(this);
   alloc_stats_.bytes_limit = static_cast<int64>(total_memory);
+  fallback_memory_manager_ = std::make_shared<GPUTreeMemoryManager>(sub_allocator);
 }
 
 GPUTensorPoolAllocator::~GPUTensorPoolAllocator() {
@@ -656,10 +763,7 @@ GPUTensorPoolAllocator::~GPUTensorPoolAllocator() {
       delete bin;
     }
   }
-  if (fallback_allocator_ != nullptr) {
-    fallback_allocator_.reset();
-    fallback_allocations_.clear();
-  }
+  fallback_memory_manager_.reset()
 }
 
 void GPUTensorPoolAllocator::Init() {
@@ -859,13 +963,9 @@ void GPUTensorPoolAllocator::DeallocateRaw(void* ptr) {
     BigDeallocate(ptr);
   } else if (IsSmallOwned(ptr)) {
     SmallDeallocate(ptr);
-  } else if (fallback_allocations_.find(ptr) != fallback_allocations_.end()) {
-    // sub_allocator_->Free(ptr, 0);
-    fallback_allocations_.erase(ptr);
-    fallback_allocator_->DeallocateRaw(ptr);
-    VLOG(0) << name_ << " Calling DeallocateRaw: returned " << ptr << " to fallback allocator";
   } else {
-    sub_allocator_->Free(ptr, 0);
+    // sub_allocator_->Free(ptr, 0);
+    fallback_memory_manager_->ReleaseBuffer(ptr)
   }
 }
 
@@ -1057,20 +1157,20 @@ bool GPUTensorPoolAllocator::IsSmallOwned(void *ptr) {
 void* GPUTensorPoolAllocator::SmallAllocate(size_t alignment, size_t num_bytes) {
   auto bin = GetSmallBin(num_bytes);
   size_t bytes_received;
+  auto real_num_bytes = RoundedBytes(num_bytes, alignment);
+  void* ptr;
   if (unlikely(bin == nullptr)) {
     // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
-    auto ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
-    fallback_allocations_.insert(ptr);
-    VLOG(0) << "call SmallAllocate but still require from OS for " << num_bytes << " bytes because bin is nullptr and get " << ptr;
+    ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
+    VLOG(0) << "call SmallAllocate but still require from OS for " << real_num_bytes << " bytes because bin is nullptr and get " << ptr;
     return ptr;
   }
   auto ptr = bin->AllocateRaw();
   if (likely(ptr != nullptr)) {
     return ptr;
   }
-  ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
-  fallback_allocations_.insert(ptr);
-  VLOG(0) << "call SmallAllocate but still require from OS for " << num_bytes << " bytes and get " << ptr;
+  ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
+  VLOG(0) << "call SmallAllocate but still require from OS for " << real_num_bytes << " bytes and get " << ptr;
   // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
   return ptr;
 }
@@ -1078,20 +1178,20 @@ void* GPUTensorPoolAllocator::SmallAllocate(size_t alignment, size_t num_bytes) 
 void* GPUTensorPoolAllocator::BigAllocate(size_t alignment, size_t num_bytes) {
   size_t bytes_received;
   auto id = Index(num_bytes, alignment_, alignment_offset_);
+  auto real_num_bytes = RoundedBytes(num_bytes, alignment);
+  void* ptr;
   if (unlikely(id < 0)) {
     // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
-    auto ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
-    fallback_allocations_.insert(ptr);
-    VLOG(0) << "call BigAllocate but still require from OS for " << num_bytes << " bytes beacuse id < 0 and get " << ptr;
+    ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
+    VLOG(0) << "call BigAllocate but still require from OS for " << real_num_bytes << " bytes beacuse id < 0 and get " << ptr;
     return ptr;
   }
 
   auto b = GetBin(id);
   if (unlikely(b == nullptr)) {
     // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
-    auto ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
-    fallback_allocations_.insert(ptr);
-    VLOG(0) << "call BigAllocate but still require from OS for " << num_bytes << " bytes beacuse bin is nullptr and get " << ptr;
+    auto ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
+    VLOG(0) << "call BigAllocate but still require from OS for " << real_num_bytes << " bytes beacuse bin is nullptr and get " << ptr;
     return ptr;
   }
 
@@ -1101,9 +1201,8 @@ void* GPUTensorPoolAllocator::BigAllocate(size_t alignment, size_t num_bytes) {
   }
 
   // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
-  ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
-  fallback_allocations_.insert(ptr);
-  VLOG(0) << "call BigAllocate but still require from OS for " << num_bytes << " bytes and get " << ptr;
+  ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
+  VLOG(0) << "call BigAllocate but still require from OS for " << real_num_bytes << " bytes and get " << ptr;
   return ptr;
 }
 
@@ -1111,11 +1210,12 @@ void* GPUTensorPoolAllocator::BigAllocate(size_t alignment, size_t num_bytes) {
 void* GPUTensorPoolAllocator::BigAllocateStatistic(size_t alignment, size_t num_bytes) {
   size_t bytes_received;
   auto id = Index(num_bytes, alignment_, alignment_offset_);
+  auto real_num_bytes = RoundedBytes(num_bytes, alignment);
+  void* ptr;
   if (unlikely(id < 0)) {
     // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
-    auto ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
-    fallback_allocations_.insert(ptr);
-    VLOG(0) << "call BigAllocateStatistic but still require from OS for " << num_bytes << " bytes because id < 0 and get " << ptr;
+    ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
+    VLOG(0) << "call BigAllocateStatistic but still require from OS for " << real_num_bytes << " bytes because id < 0 and get " << ptr;
     return ptr;
   }
 
@@ -1123,9 +1223,8 @@ void* GPUTensorPoolAllocator::BigAllocateStatistic(size_t alignment, size_t num_
   if (unlikely(b == nullptr)) {
     ++null_bin_counter_;
     // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
-    auto ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
-    fallback_allocations_.insert(ptr);
-    VLOG(0) << "call BigAllocateStatistic but still require from OS for " << num_bytes << " bytes because bin is nullptr and get " << ptr;
+    ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
+    VLOG(0) << "call BigAllocateStatistic but still require from OS for " << real_num_bytes << " bytes because bin is nullptr and get " << ptr;
     return ptr;
   }
 
@@ -1137,9 +1236,8 @@ void* GPUTensorPoolAllocator::BigAllocateStatistic(size_t alignment, size_t num_
 
   ++missed_counter_;
   // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
-  ptr = fallback_allocator_->AllocateRaw(alignment, num_bytes);
-  fallback_allocations_.insert(ptr);
-  VLOG(0) << "call BigAllocateStatistic but still require from OS for " << num_bytes << " bytes and get " << ptr;
+  ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
+  VLOG(0) << "call BigAllocateStatistic but still require from OS for " << real_num_bytes << " bytes and get " << ptr;
   return ptr;
 }
 

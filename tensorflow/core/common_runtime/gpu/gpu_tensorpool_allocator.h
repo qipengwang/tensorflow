@@ -260,10 +260,58 @@ class GPUScopedMemoryCollector {
   }
 };
 
+class GPUMemoryManager {
+ public:
+  virtual GPUTreeMemoryManager(Allocator* allocator_) = 0;
+  virtual ~GPUTreeMemoryManager() = 0;
+  virtual void* AllocateBuffer(size_t N) = 0;
+  virtual void ReleaseBuffer(void* ptr) = 0;
+};
+
+class GPUTreeMemoryManager : public GPUMemoryManager {
+  /**
+   * Manage the memory as a tree structure
+   * If find the best fitted free chunk, just split it into 2 parts, 
+   * The first part, with exactly the requested size, is returned.
+   * Then the first part is inserted into the used_list_.
+   * The second part, with the remained size, is marked as the free chunk.
+   * The 2 part has pointer to the splitted Node.
+   * The use count indicates that how many requests are using this chunk(Node).
+   * 
+   * If the use_count becomes 0, it means that all the sub-nodes are free, just merge them into a larger Node. 
+   */
+ public:
+  virtual GPUTreeMemoryManager(Allocator* allocator_) override;
+  virtual ~GPUTreeMemoryManager() override;
+  virtual void* AllocateBuffer(size_t N) override;
+  virtual void ReleaseBuffer(void* ptr) override;
+
+
+ private:
+  class Node {
+   public:
+    ~Node();
+    void* pointer = nullptr; // the first is the root pointer and the second is the offset
+    std::shared_ptr<Node> parent = nullptr;
+    size_t size = 0;
+    size_t use_ount = 0;
+    std::shared_ptr<Allocator> outsizd_allocator = nullptr;
+  };
+
+  typedef std::multimap<size_t, std::shared_ptr<Node>> FREELIST;
+
+  void returnMemory(std::shared_ptr<Node> node);
+  void* GetFromFreeList(size_t N);  // permiteSplit = true
+
+  std::map<void*, std::shared_ptr<Node>> used_list_;
+  FREELIST free_list_;
+  size_t total_size_ = 0;
+  std::shared_ptr<Allocator> allocator_ptr_;
+};
+
 class GPUTensorPoolAllocator : public Allocator {
  public:
-  GPUTensorPoolAllocator(SubAllocator* sub_allocator, Allocator* fallback_allocator, string name,
-                      size_t total_memory);
+  GPUTensorPoolAllocator(SubAllocator* sub_allocator, string name, size_t total_memory);
   ~GPUTensorPoolAllocator() override;
 
   GPUTensorPoolAllocator(const GPUTensorPoolAllocator&) = delete;
@@ -376,8 +424,8 @@ class GPUTensorPoolAllocator : public Allocator {
 
   std::atomic_int step_id_;
 
-  std::unique_ptr<SubAllocator> sub_allocator_;
-  std::unique_ptr<Allocator> fallback_allocator_;
+  std::shared_ptr<SubAllocator> sub_allocator_;
+  std::shared_ptr<GPUMemoryManager> fallback_memory_manager_;
   GPUMemoryPlannerBase* mem_planner_;
 
   size_t large_bin_index_;
@@ -396,7 +444,6 @@ class GPUTensorPoolAllocator : public Allocator {
   void *small_mem_begin_;
   void *small_mem_end_;
   std::map<size_t, SmallBin*> offset_to_small_bin_;
-  std::set<void*> fallback_allocations_;
 
   // Statistic
   std::atomic<int64_t> null_bin_counter_;
