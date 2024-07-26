@@ -196,17 +196,15 @@ Allocator* GPUProcessState::GetGPUAllocator(
     //     options.experimental().internal_fragmentation_fraction());
     // Allocator* gpu_allocator = gpu_bfc_allocator;
     Allocator* gpu_allocator = nullptr;
-    GPUBFCAllocator* gpu_bfc_allocator = 
-        new GPUBFCAllocator(sub_allocator, total_bytes, options,
-                            strings::StrCat("GPU_", tf_device_id.value(), "_bfc"),
-                            options.experimental().internal_fragmentation_fraction());;
     if (useTensorPoolAllocator()) {
       gpu_allocator =
-          new GPUTensorPoolAllocator(sub_allocator, gpu_bfc_allocator,
+          new GPUTensorPoolAllocator(sub_allocator,
                       strings::StrCat("GPU_", tf_device_id.value(), "_tensorpool"),
                       total_bytes);
     } else {
-      gpu_allocator = gpu_bfc_allocator;
+      gpu_allocator = new GPUBFCAllocator(sub_allocator, total_bytes, options,
+                                          strings::StrCat("GPU_", tf_device_id.value(), "_bfc"),
+                                          options.experimental().internal_fragmentation_fraction());;;
     }
 
     SharedCounter* timing_counter = nullptr;
