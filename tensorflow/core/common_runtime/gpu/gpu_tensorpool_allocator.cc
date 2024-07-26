@@ -952,9 +952,9 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
   }
   VLOG(0) << name_ << " Calling AllocateRaw: using optimized allocation planner, requiring " << num_bytes << " bytes";
 
-  if (SmallAlloc(num_bytes)) {
+  if (SmallAlloc(num_bytes) && false) {
     return SmallAllocate(alignment, num_bytes);
-  } else if (unlikely(stats_)) {
+  } else if (unlikely(stats_) && false) {
     return BigAllocateStatistic(alignment, num_bytes);
   } else {
     return BigAllocate(alignment, num_bytes);
@@ -966,9 +966,9 @@ void GPUTensorPoolAllocator::DeallocateRaw(void* ptr) {
   if (!inited_.load()) {
     mem_planner_->TrackDeallocate(ptr);
     sub_allocator_->Free(ptr, 0);
-  } else if (IsBigOwned(ptr)) {
+  } else if (IsBigOwned(ptr) && false) {
     BigDeallocate(ptr);
-  } else if (IsSmallOwned(ptr)) {
+  } else if (IsSmallOwned(ptr) && false) {
     SmallDeallocate(ptr);
   } else {
     // sub_allocator_->Free(ptr, 0);
