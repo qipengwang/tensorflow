@@ -630,7 +630,7 @@ void* GPUTreeMemoryManager::AllocateBuffer(size_t N) {
   std::shared_ptr<Node> node(new Node);
   node->size = N;
   node->pointer = ptr;
-  node->outside_allocator = allocator_ptr_.get();
+  node->outside_allocator = allocator_ptr_;
   used_list_[ptr] = node;
   return ptr;
 }
