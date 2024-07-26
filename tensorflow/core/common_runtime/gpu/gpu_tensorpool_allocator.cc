@@ -643,6 +643,7 @@ void* GPUTreeMemoryManager::AllocateBuffer(size_t N) {
 }
 
 void GPUTreeMemoryManager::ReleaseBuffer(void* ptr) {
+  VLOG(0) << "call ReleaseBuffer: " << ptr;
   auto iter = used_list_.find(ptr);
   if (iter == used_list_.end()) {
     LOG(FATAL) << "GPUTreeMemoryManager Invalid Release Buffer: " << ptr;
@@ -952,6 +953,10 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
   }
   VLOG(0) << name_ << " Calling AllocateRaw: using optimized allocation planner, requiring " << num_bytes << " bytes";
 
+  auto real_num_bytes = RoundedBytes(num_bytes, alignment);
+  void* ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
+  VLOG(0) << name_ << "Calling fallback_memory_manager_ to alloc " << real_num_bytes << " Bytes and got " << ptr;
+  return ptr;
   if (SmallAlloc(num_bytes) && false) {
     return SmallAllocate(alignment, num_bytes);
   } else if (unlikely(stats_) && false) {
