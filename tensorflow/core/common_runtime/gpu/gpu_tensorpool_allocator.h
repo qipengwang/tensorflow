@@ -262,8 +262,8 @@ class GPUScopedMemoryCollector {
 
 class GPUMemoryManager {
  public:
-  GPUTreeMemoryManager(Allocator* allocator_) {};
-  ~GPUTreeMemoryManager() {};
+  GPUTreeMemoryManager(Allocator* allocator_) {}
+  ~GPUTreeMemoryManager() {}
   virtual void* AllocateBuffer(size_t N) = 0;
   virtual void ReleaseBuffer(void* ptr) = 0;
 };
