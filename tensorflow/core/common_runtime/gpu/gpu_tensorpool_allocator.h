@@ -266,6 +266,7 @@ class GPUMemoryManager {
   ~GPUMemoryManager() {}
   virtual void* AllocateBuffer(size_t N) = 0;
   virtual void ReleaseBuffer(void* ptr) = 0;
+  virtual bool IsAllocatedBuffer(void* ptr) = 0;
 };
 
 class GPUTreeMemoryManager : public GPUMemoryManager {
@@ -285,6 +286,7 @@ class GPUTreeMemoryManager : public GPUMemoryManager {
   ~GPUTreeMemoryManager();
   virtual void* AllocateBuffer(size_t N) override;
   virtual void ReleaseBuffer(void* ptr) override;
+  virtual bool IsAllocatedBuffer(void* ptr) override;
 
 
  private:
@@ -449,6 +451,7 @@ class GPUTensorPoolAllocator : public Allocator {
   std::atomic<int64_t> null_bin_counter_;
   std::atomic<int64_t> hit_counter_;
   std::atomic<int64_t> missed_counter_;
+  std::set<void*> directly_allocated_pointers_;
 };
 
 }

@@ -622,6 +622,18 @@ GPUTreeMemoryManager::~GPUTreeMemoryManager() {
   total_size_ = 0;
 }
 
+bool GPUTreeMemoryManager::IsAllocatedBuffer(void* ptr) {
+  if (used_list_.find(ptr) != used_list_.end()) {
+    return true;
+  }
+  for (auto iter: free_list) {
+    if (iter.second->pointer == ptr) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void* GPUTreeMemoryManager::AllocateBuffer(size_t N) {
   void* ptr = GetFromFreeList(N);
   if (nullptr != ptr) {
@@ -754,9 +766,11 @@ GPUTensorPoolAllocator::GPUTensorPoolAllocator(
 GPUTensorPoolAllocator::~GPUTensorPoolAllocator() {
   if (big_mem_begin_ != nullptr) {
     sub_allocator_->Free(big_mem_begin_, big_bytes_);
+    directly_allocated_pointers_.erase(big_mem_begin_);
   }
   if (small_mem_begin_ != nullptr) {
     sub_allocator_->Free(small_mem_begin_, small_bytes_);
+    directly_allocated_pointers_.erase(small_mem_begin_);
   }
   for (auto bin : lifetime_bins_) {
     if (bin != nullptr) {
@@ -825,6 +839,7 @@ void GPUTensorPoolAllocator::Init() {
     VLOG(0) << "big_bytes_ " << big_bytes_ << " max_alignment " << max_alignment;
     size_t bytes_received;
     big_mem_begin_ = sub_allocator_->Alloc(max_alignment, big_bytes_, &bytes_received);
+    directly_allocated_pointers_.insert(big_mem_begin_);
     if (big_bytes_ > 0 && big_mem_begin_ == nullptr) {
       LOG(FATAL) << "OOM!!! Try to alloc(" << max_alignment << ", " << big_bytes_ << ")";
     }
@@ -885,6 +900,7 @@ void GPUTensorPoolAllocator::Init() {
     }
 
     small_mem_begin_ = sub_allocator_->Alloc(max_alignment, small_bytes_, &bytes_received);
+    directly_allocated_pointers_.insert(small_mem_begin_);
     if (small_bytes_ > 0 && small_mem_begin_ == nullptr) {
       LOG(FATAL) << "OOM!!! Try to alloc(" << max_alignment << ", " << small_bytes_ << ")";
     }
@@ -924,6 +940,7 @@ void GPUTensorPoolAllocator::BeginStep() {
   std::lock_guard<spin_lock> l(free_lock_);
   for (auto ptr : async_free_list_) {
     sub_allocator_->Free(ptr, 0);
+    directly_allocated_pointers_.erase(ptr);
   }
   async_free_list_.clear();
 }
@@ -948,6 +965,7 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
     VLOG(0) << name_ << " Calling AllocateRaw: Allocate from OS directly, requiring " << num_bytes << " bytes";
     size_t bytes_received;
     auto ptr = sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
+    directly_allocated_pointers_.insert(ptr);
     mem_planner_->TrackAllocate(alignment, num_bytes, ptr);
     return ptr;
   }
@@ -971,13 +989,16 @@ void GPUTensorPoolAllocator::DeallocateRaw(void* ptr) {
   if (!inited_.load()) {
     mem_planner_->TrackDeallocate(ptr);
     sub_allocator_->Free(ptr, 0);
+    directly_allocated_pointers_.erase(ptr);
   } else if (IsBigOwned(ptr) && false) {
     BigDeallocate(ptr);
   } else if (IsSmallOwned(ptr) && false) {
     SmallDeallocate(ptr);
-  } else {
-    // sub_allocator_->Free(ptr, 0);
+  } else if (fallback_memory_manager_->IsAllocatedBuffer(ptr)) {
     fallback_memory_manager_->ReleaseBuffer(ptr);
+  } else {
+    sub_allocator_->Free(ptr, 0);
+    directly_allocated_pointers_.erase(ptr);
   }
 }
 
