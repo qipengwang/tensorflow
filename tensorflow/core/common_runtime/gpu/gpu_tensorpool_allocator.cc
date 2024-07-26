@@ -616,12 +616,13 @@ GPUTreeMemoryManager::~GPUTreeMemoryManager() {
 }
 
 void* GPUTreeMemoryManager::AllocateBuffer(size_t N) {
-  void* ptr = getFromFreeList(N);
+  void* ptr = GetFromFreeList(N);
   if (nullptr != ptr) {
       return ptr;
   }
   // alloc otherwise
-  void* ptr = allocator_ptr_->AllocateRaw(N, 1);
+  size_t bytes_received;
+  ptr = allocator_ptr_->Alloc(1, N, &bytes_received);
   if (nullptr == ptr) {
       return ptr;
   }
