@@ -651,9 +651,9 @@ void GPUTreeMemoryManager::returnMemory(std::shared_ptr<Node> node) {
   free_list_.insert(std::make_pair(node->size, node));
   if (nullptr != node->parent.get()) {
     auto parent = node->parent;
-    parent->useCount -= 1;
+    parent->use_ount -= 1;
     // merge if all subnodes were freed
-    auto needMerge = parent->useCount == 0;
+    auto needMerge = parent->use_ount == 0;
     while (needMerge) {
       // collect all subnodes
       for (auto iter = free_list_.begin(); iter != free_list_.end();) {
@@ -669,8 +669,8 @@ void GPUTreeMemoryManager::returnMemory(std::shared_ptr<Node> node) {
       needMerge = false;
       if (parent->parent.get() != nullptr) {
           parent = parent->parent;
-          parent->useCount -= 1;
-          needMerge = parent->useCount == 0;
+          parent->use_ount -= 1;
+          needMerge = parent->use_ount == 0;
       }
     }
   }
@@ -685,7 +685,7 @@ void* GPUTreeMemoryManager::GetFromFreeList(size_t N) {
   // update parent use count
   auto node = iter->second;
   if (node->parent.get() != nullptr) {
-    node->parent->useCount += 1;
+    node->parent->use_ount += 1;
   }
 
   if (iter->first == N) { // lower_bound  ensure iter->first>=N
@@ -700,8 +700,8 @@ void* GPUTreeMemoryManager::GetFromFreeList(size_t N) {
   first->parent = node;
   first->size = N;
   first->pointer = node->pointer;
-  used_list_.insert(std::make_pair(first->pointer_size_pair, first));
-  node->useCount += 1;
+  used_list_.insert(std::make_pair(first->pointer, first));
+  node->use_ount += 1;
 
   std::shared_ptr<Node> second(new Node);
   second->parent = node;
