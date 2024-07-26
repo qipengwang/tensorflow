@@ -262,7 +262,7 @@ class GPUScopedMemoryCollector {
 
 class GPUMemoryManager {
  public:
-  GPUMemoryManager(Allocator* allocator_) {}
+  GPUMemoryManager(SubAllocator* allocator_) {}
   ~GPUMemoryManager() {}
   virtual void* AllocateBuffer(size_t N) = 0;
   virtual void ReleaseBuffer(void* ptr) = 0;
@@ -281,7 +281,7 @@ class GPUTreeMemoryManager : public GPUMemoryManager {
    * If the use_count becomes 0, it means that all the sub-nodes are free, just merge them into a larger Node. 
    */
  public:
-  GPUTreeMemoryManager(Allocator* allocator_);
+  GPUTreeMemoryManager(SubAllocator* allocator_);
   ~GPUTreeMemoryManager();
   virtual void* AllocateBuffer(size_t N) override;
   virtual void ReleaseBuffer(void* ptr) override;
@@ -295,7 +295,7 @@ class GPUTreeMemoryManager : public GPUMemoryManager {
     std::shared_ptr<Node> parent = nullptr;
     size_t size = 0;
     size_t use_ount = 0;
-    std::shared_ptr<Allocator> outside_allocator = nullptr;
+    std::shared_ptr<SubAllocator> outside_allocator = nullptr;
   };
 
   typedef std::multimap<size_t, std::shared_ptr<Node>> FREELIST;
@@ -306,7 +306,7 @@ class GPUTreeMemoryManager : public GPUMemoryManager {
   std::map<void*, std::shared_ptr<Node>> used_list_;
   FREELIST free_list_;
   size_t total_size_ = 0;
-  std::shared_ptr<Allocator> allocator_ptr_;
+  std::shared_ptr<SubAllocator> allocator_ptr_;
 };
 
 class GPUTensorPoolAllocator : public Allocator {

@@ -606,7 +606,7 @@ GPUMemoryPlannerFactory::GPUMemoryPlannerFactory() {
   }
 }
 
-GPUTreeMemoryManager::GPUTreeMemoryManager(Allocator* allocator_) 
+GPUTreeMemoryManager::GPUTreeMemoryManager(SubAllocator* allocator_) 
     : allocator_ptr_(allocator_) {}
 
 GPUTreeMemoryManager::~GPUTreeMemoryManager() {
