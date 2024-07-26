@@ -606,6 +606,13 @@ GPUMemoryPlannerFactory::GPUMemoryPlannerFactory() {
   }
 }
 
+GPUTreeMemoryManager::Node::~Node() {
+  if (nullptr == parent.get()) {
+    outside_allocator->Free(pointer, size);
+    outside_allocator.reset();
+  }
+}
+
 GPUTreeMemoryManager::GPUTreeMemoryManager(SubAllocator* allocator_) 
     : allocator_ptr_(allocator_) {}
 
