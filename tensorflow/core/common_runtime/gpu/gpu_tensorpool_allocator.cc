@@ -690,7 +690,7 @@ void* GPUTreeMemoryManager::GetFromFreeList(size_t N) {
 
   if (iter->first == N) { // lower_bound  ensure iter->first>=N
     // uses up all aligned space
-    used_list_.insert(std::make_pair(node->size, node));
+    used_list_.insert(std::make_pair(node->pointer, node));
     free_list_.erase(iter);
     return node->pointer;
   }
@@ -763,7 +763,7 @@ GPUTensorPoolAllocator::~GPUTensorPoolAllocator() {
       delete bin;
     }
   }
-  fallback_memory_manager_.reset()
+  fallback_memory_manager_.reset();
 }
 
 void GPUTensorPoolAllocator::Init() {
