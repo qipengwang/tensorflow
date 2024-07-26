@@ -626,7 +626,7 @@ bool GPUTreeMemoryManager::IsAllocatedBuffer(void* ptr) {
   if (used_list_.find(ptr) != used_list_.end()) {
     return true;
   }
-  for (auto iter: free_list) {
+  for (auto iter: free_list_) {
     if (iter.second->pointer == ptr) {
       return true;
     }
