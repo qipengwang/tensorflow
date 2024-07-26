@@ -615,7 +615,7 @@ GPUTreeMemoryManager::~GPUTreeMemoryManager() {
   total_size_ = 0;
 }
 
-void* GPUTreeMemoryManager::AllocateBuffer(size_t N) override {
+void* GPUTreeMemoryManager::AllocateBuffer(size_t N) {
   void* ptr = getFromFreeList(N);
   if (nullptr != ptr) {
       return ptr;
@@ -634,11 +634,10 @@ void* GPUTreeMemoryManager::AllocateBuffer(size_t N) override {
   return ptr;
 }
 
-void GPUTreeMemoryManager::ReleaseBuffer(void* ptr) override {
-  auto iter = used_list_.find(ptr_size);
+void GPUTreeMemoryManager::ReleaseBuffer(void* ptr) {
+  auto iter = used_list_.find(ptr);
   if (iter == used_list_.end()) {
-    LOG(FATAL) << "GPUTreeMemoryManager Invalid Release Buffer: " 
-               << ptr_size.first << ", " << ptr_size.second;
+    LOG(FATAL) << "GPUTreeMemoryManager Invalid Release Buffer: " << ptr;
     return;
   }
   // mark as reusable
