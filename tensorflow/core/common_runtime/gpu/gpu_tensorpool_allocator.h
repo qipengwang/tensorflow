@@ -262,7 +262,7 @@ class GPUScopedMemoryCollector {
 
 class GPUMemoryManager {
  public:
-  GPUMemoryManager(SubAllocator* allocator_) {}
+  GPUMemoryManager() {}
   ~GPUMemoryManager() {}
   virtual void* AllocateBuffer(size_t N) = 0;
   virtual void ReleaseBuffer(void* ptr) = 0;
