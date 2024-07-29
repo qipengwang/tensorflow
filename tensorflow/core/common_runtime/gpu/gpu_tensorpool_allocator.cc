@@ -961,7 +961,7 @@ GPUTensorPoolAllocator::GPUTensorPoolAllocator(
   }
   mem_planner_->SetAllocator(this);
   alloc_stats_.bytes_limit = static_cast<int64>(total_memory);
-  fallback_memory_manager_ = std::make_shared<GPUTwoLevelTreeMemoryManager>(sub_allocator);
+  fallback_memory_manager_ = std::make_shared<GPUBinaryTreeMemoryManager>(sub_allocator);
 }
 
 GPUTensorPoolAllocator::~GPUTensorPoolAllocator() {
