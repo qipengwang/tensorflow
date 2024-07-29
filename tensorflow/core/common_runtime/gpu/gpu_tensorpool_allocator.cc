@@ -626,11 +626,6 @@ bool GPUTreeMemoryManager::IsAllocatedBuffer(void* ptr) {
   if (used_list_.find(ptr) != used_list_.end()) {
     return true;
   }
-  for (auto iter: free_list_) {
-    if (iter.second->pointer == ptr) {
-      return true;
-    }
-  }
   return false;
 }
 
@@ -953,6 +948,11 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment,
 void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
   // VLOG(1) << name_ << " Calling AllocateRaw, env PRMALLOC_STAGE is " << std::getenv("PRMALLOC_STAGE");
   std::lock_guard<spin_lock> l(allocate_lock_);
+  auto real_num_bytes = RoundedBytes(num_bytes, alignment);
+  VLOG(0) << name_ << " Calling AllocateRaw: using optimized allocation planner, requiring " << real_num_bytes << " bytes";
+  auto ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
+  return ptr;
+
   auto current_step = GlobalStepFromEnv();
   if (step_id_.load() != current_step) {
     // VLOG(1) << name_ << " Calling AllocateRaw, step_id is " << step_id_.load() << ", current_step is " << current_step << std::endl;
@@ -969,10 +969,7 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
     mem_planner_->TrackAllocate(alignment, num_bytes, ptr);
     return ptr;
   }
-  auto real_num_bytes = RoundedBytes(num_bytes, alignment);
-  VLOG(0) << name_ << " Calling AllocateRaw: using optimized allocation planner, requiring " << real_num_bytes << " bytes";
-  auto ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
-  return ptr;
+  
 
   if (SmallAlloc(num_bytes)) {
     return SmallAllocate(alignment, num_bytes);
@@ -985,6 +982,9 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
 
 void GPUTensorPoolAllocator::DeallocateRaw(void* ptr) {
   std::lock_guard<spin_lock> l(free_lock_);
+  fallback_memory_manager_->ReleaseBuffer(ptr);
+  return;
+  
   if (!inited_.load()) {
     mem_planner_->TrackDeallocate(ptr);
     sub_allocator_->Free(ptr, 0);
