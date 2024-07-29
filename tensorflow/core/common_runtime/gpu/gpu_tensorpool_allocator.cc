@@ -632,13 +632,15 @@ bool GPUTreeMemoryManager::IsAllocatedBuffer(void* ptr) {
 void* GPUTreeMemoryManager::AllocateBuffer(size_t N) {
   void* ptr = GetFromFreeList(N);
   if (nullptr != ptr) {
-      return ptr;
+    VLOG(0) << "AllocateBuffer and get " << ptr << " from free list";
+    return ptr;
   }
   // alloc otherwise
   size_t bytes_received;
   ptr = allocator_ptr_->Alloc(1, N, &bytes_received);
   if (nullptr == ptr) {
-      return ptr;
+    VLOG(0) << "AllocateBuffer but get nullptr, may because of OOM!";
+    return ptr;
   }
   total_size_ += N;
   std::shared_ptr<Node> node(new Node);
@@ -646,6 +648,7 @@ void* GPUTreeMemoryManager::AllocateBuffer(size_t N) {
   node->pointer = ptr;
   node->outside_allocator = allocator_ptr_;
   used_list_[ptr] = node;
+  VLOG(0) << "AllocateBuffer and get " << ptr << " from OS";
   return ptr;
 }
 
@@ -981,10 +984,10 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
 }
 
 void GPUTensorPoolAllocator::DeallocateRaw(void* ptr) {
-  std::lock_guard<spin_lock> l(free_lock_);
+  std::lock_guard<spin_lock> l(allocate_lock_);
   fallback_memory_manager_->ReleaseBuffer(ptr);
   return;
-  
+
   if (!inited_.load()) {
     mem_planner_->TrackDeallocate(ptr);
     sub_allocator_->Free(ptr, 0);
