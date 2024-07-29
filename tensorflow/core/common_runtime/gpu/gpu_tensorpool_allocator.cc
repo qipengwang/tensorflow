@@ -606,30 +606,199 @@ GPUMemoryPlannerFactory::GPUMemoryPlannerFactory() {
   }
 }
 
-GPUTreeMemoryManager::Node::~Node() {
+GPUTwoLevelTreeMemoryManager::Node::~Node() {
+  left.reset();
+  right.reset();
   if (nullptr == parent.get()) {
     outside_allocator->Free(pointer, size);
     outside_allocator.reset();
   }
 }
 
-GPUTreeMemoryManager::GPUTreeMemoryManager(SubAllocator* allocator_) 
+GPUTwoLevelTreeMemoryManager::GPUTwoLevelTreeMemoryManager(SubAllocator* allocator_) 
     : allocator_ptr_(allocator_) {}
 
-GPUTreeMemoryManager::~GPUTreeMemoryManager() {
+GPUTwoLevelTreeMemoryManager::~GPUTwoLevelTreeMemoryManager() {
+  for(auto iter : used_list_) {
+    auto node = iter.second;
+    (node->left).reset();
+    (node->right).reset();
+  }
   used_list_.clear();
+  for(auto iter: free_list_) {
+    auto node = iter.second;
+    (node->left).reset();
+    (node->right).reset();
+  }
   free_list_.clear();
   total_size_ = 0;
 }
 
-bool GPUTreeMemoryManager::IsAllocatedBuffer(void* ptr) {
+bool GPUTwoLevelTreeMemoryManager::IsAllocatedBuffer(void* ptr) {
   if (used_list_.find(ptr) != used_list_.end()) {
     return true;
   }
   return false;
 }
 
-void* GPUTreeMemoryManager::AllocateBuffer(size_t N) {
+void* GPUTwoLevelTreeMemoryManager::AllocateBuffer(size_t N) {
+  void* ptr = GetFromFreeList(N);
+  if (nullptr != ptr) {
+    VLOG(0) << "GPUTwoLevelTreeMemoryManager::AllocateBuffer and get " << ptr << " from free list";
+    return ptr;
+  }
+  // alloc new buffer
+  size_t bytes_received;
+  ptr = allocator_ptr_->Alloc(1, N, &bytes_received);
+  if (nullptr == ptr) {
+    VLOG(0) << "AllocateBuffer but get nullptr, may because of OOM!";
+    return ptr;
+  }
+  total_size_ += N;
+  std::shared_ptr<Node> root_node(new Node);
+  root_node->size = N;
+  root_node->pointer = ptr;
+  root_node->outside_allocator = allocator_ptr_;
+
+  std::shared_ptr<Node> leaf_node(new Node);
+  leaf_node->size = N;
+  leaf_node->pointer = ptr;
+  leaf_node->parent = root_node;
+
+  used_list_.insert(std::make_pair(ptr, leaf_node));
+  VLOG(0) << "AllocateBuffer and get " << ptr << " from OS";
+  return ptr;
+}
+
+void GPUTwoLevelTreeMemoryManager::ReleaseBuffer(void* ptr) {
+  VLOG(0) << "call ReleaseBuffer: " << ptr;
+  auto iter = used_list_.find(ptr);
+  if (iter == used_list_.end()) {
+    LOG(FATAL) << "GPUBinaryTreeMemoryManager Invalid Release Buffer: " << ptr;
+    return;
+  }
+  auto node = iter->second;
+  used_list_.erase(iter);
+  returnMemory(node);
+}
+
+void GPUTwoLevelTreeMemoryManager::returnMemory(std::shared_ptr<Node> node) {
+  free_list_.insert(std::make_pair(node->size, node));
+  if(node->parent == nullptr) {
+    return;  // this is the root node, not need merge
+  }
+  // find left nodes that can be merged
+  if(node->left != nullptr) {
+    bool can_merge = false;
+    for(auto iter: free_list_) {
+      if(iter.second == node->left && (iter.second)->parent == node->parent) {
+        can_merge = true;
+        break;
+      }
+    }
+    if (can_merge) {
+      node = node->left;
+      // merge the node->right into node
+      node->size += node->right->size;
+      node->right = node->right->right;
+      if (node->right->right != nullptr) {
+        node->right->right->left = node;
+      }
+      // delete the node->right from free list
+      for(auto iter = free_list_.begin(); iter != free_list_.end(); iter++) {
+        if(iter->second == node->right) {
+          free_list_.erase(iter);
+          break;
+        }
+      }
+    }
+  }
+  // find right nodes that can be merged
+  if (node->right != nullptr) {
+    bool can_merge = false;
+    for(auto iter: free_list_) {
+      if(iter.second == node->right && (iter.second)->parent == node->parent) {
+        can_merge = true;
+        break;
+      }
+    }
+    if (can_merge) {
+      // merge the node->right into node
+      node->size += node->right->size;
+      node->right = node->right->right;
+      if (node->right->right != nullptr) {
+        node->right->right->left = node;
+      }
+      // delete the node->right from free list
+      for(auto iter = free_list_.begin(); iter != free_list_.end(); iter++) {
+        if(iter->second == node->right) {
+          free_list_.erase(iter);
+          break;
+        }
+      }
+    }
+  }
+}
+
+void* GPUTwoLevelTreeMemoryManager::GetFromFreeList(size_t N) {
+  auto iter = free_list_.lower_bound(N);  //  iter point to pair(size_t, std::shared_ptr<Node>)
+  if (iter == free_list_.end()) {
+    return nullptr;
+  }
+  auto node = iter->second;
+  if (iter->first == N) { // lower_bound  ensure iter->first>=N
+    // uses up all aligned space
+    used_list_.insert(std::make_pair(node->pointer, node));
+    free_list_.erase(iter);
+    return node->pointer;
+  }
+  // split the node into two nodes
+  std::shared_ptr<Node> left_node(new Node);
+  std::shared_ptr<Node> right_node(new Node);
+
+  left_node->size = N;
+  left_node->pointer = node->pointer;
+  left_node->parent = node->parent;
+  left_node->left = node->left;
+  left_node->right = right_node;
+
+  right_node->size = node->size - N;
+  right_node->pointer = (void*)((uint8_t*)node->pointer + N);
+  right_node->parent = node->parent;
+  right_node->left = left_node;
+  right_node->right = node->right;
+
+  // update the used_list_ and free_list_
+  used_list_.insert(std::make_pair(left_node->pointer, left_node));
+  free_list_.erase(iter);
+  free_list_.insert(std::make_pair(right_node->size, right_node));
+  return left_node->pointer;
+}
+
+GPUBinaryTreeMemoryManager::Node::~Node() {
+  if (nullptr == parent.get()) {
+    outside_allocator->Free(pointer, size);
+    outside_allocator.reset();
+  }
+}
+
+GPUBinaryTreeMemoryManager::GPUBinaryTreeMemoryManager(SubAllocator* allocator_) 
+    : allocator_ptr_(allocator_) {}
+
+GPUBinaryTreeMemoryManager::~GPUBinaryTreeMemoryManager() {
+  used_list_.clear();
+  free_list_.clear();
+  total_size_ = 0;
+}
+
+bool GPUBinaryTreeMemoryManager::IsAllocatedBuffer(void* ptr) {
+  if (used_list_.find(ptr) != used_list_.end()) {
+    return true;
+  }
+  return false;
+}
+
+void* GPUBinaryTreeMemoryManager::AllocateBuffer(size_t N) {
   void* ptr = GetFromFreeList(N);
   if (nullptr != ptr) {
     VLOG(0) << "AllocateBuffer and get " << ptr << " from free list";
@@ -652,11 +821,11 @@ void* GPUTreeMemoryManager::AllocateBuffer(size_t N) {
   return ptr;
 }
 
-void GPUTreeMemoryManager::ReleaseBuffer(void* ptr) {
+void GPUBinaryTreeMemoryManager::ReleaseBuffer(void* ptr) {
   VLOG(0) << "call ReleaseBuffer: " << ptr;
   auto iter = used_list_.find(ptr);
   if (iter == used_list_.end()) {
-    LOG(FATAL) << "GPUTreeMemoryManager Invalid Release Buffer: " << ptr;
+    LOG(FATAL) << "GPUBinaryTreeMemoryManager Invalid Release Buffer: " << ptr;
     return;
   }
   // mark as reusable
@@ -665,13 +834,13 @@ void GPUTreeMemoryManager::ReleaseBuffer(void* ptr) {
   returnMemory(node);
 }
 
-void GPUTreeMemoryManager::returnMemory(std::shared_ptr<Node> node) {
+void GPUBinaryTreeMemoryManager::returnMemory(std::shared_ptr<Node> node) {
   free_list_.insert(std::make_pair(node->size, node));
   if (nullptr != node->parent.get()) {
     auto parent = node->parent;
-    parent->use_ount -= 1;
+    parent->use_count -= 1;
     // merge if all subnodes were freed
-    auto needMerge = parent->use_ount == 0;
+    auto needMerge = parent->use_count == 0;
     while (needMerge) {
       // collect all subnodes
       for (auto iter = free_list_.begin(); iter != free_list_.end();) {
@@ -687,14 +856,14 @@ void GPUTreeMemoryManager::returnMemory(std::shared_ptr<Node> node) {
       needMerge = false;
       if (parent->parent.get() != nullptr) {
           parent = parent->parent;
-          parent->use_ount -= 1;
-          needMerge = parent->use_ount == 0;
+          parent->use_count -= 1;
+          needMerge = parent->use_count == 0;
       }
     }
   }
 }
 
-void* GPUTreeMemoryManager::GetFromFreeList(size_t N) {
+void* GPUBinaryTreeMemoryManager::GetFromFreeList(size_t N) {
   // get node larger than size
   auto iter = free_list_.lower_bound(N);  //  iter point to pair(size_t, std::shared_ptr<Node>)
   if (iter == free_list_.end()) {
@@ -703,7 +872,7 @@ void* GPUTreeMemoryManager::GetFromFreeList(size_t N) {
   // update parent use count
   auto node = iter->second;
   if (node->parent.get() != nullptr) {
-    node->parent->use_ount += 1;
+    node->parent->use_count += 1;
   }
 
   if (iter->first == N) { // lower_bound  ensure iter->first>=N
@@ -719,7 +888,7 @@ void* GPUTreeMemoryManager::GetFromFreeList(size_t N) {
   first->size = N;
   first->pointer = node->pointer;
   used_list_.insert(std::make_pair(first->pointer, first));
-  node->use_ount += 1;
+  node->use_count += 1;
 
   std::shared_ptr<Node> second(new Node);
   second->parent = node;
@@ -758,7 +927,7 @@ GPUTensorPoolAllocator::GPUTensorPoolAllocator(
   }
   mem_planner_->SetAllocator(this);
   alloc_stats_.bytes_limit = static_cast<int64>(total_memory);
-  fallback_memory_manager_ = std::make_shared<GPUTreeMemoryManager>(sub_allocator);
+  fallback_memory_manager_ = std::make_shared<GPUBinaryTreeMemoryManager>(sub_allocator);
 }
 
 GPUTensorPoolAllocator::~GPUTensorPoolAllocator() {

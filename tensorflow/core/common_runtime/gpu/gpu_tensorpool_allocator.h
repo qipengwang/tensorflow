@@ -269,9 +269,46 @@ class GPUMemoryManager {
   virtual bool IsAllocatedBuffer(void* ptr) = 0;
 };
 
-class GPUTreeMemoryManager : public GPUMemoryManager {
+class GPUTwoLevelTreeMemoryManager : public GPUMemoryManager {
   /**
-   * Manage the memory as a tree structure
+   * Manage the memory as a tree structure, and the level of tree is 2!!!
+   * Each leaf node has the same root node.
+   *  Menmory block is coalesced as possible.
+   *  The leaf nodes are managed as a bi-direction linked list.
+   *  If two free nodes are adjacent, then they are merged.
+   */
+
+ public:
+  GPUTwoLevelTreeMemoryManager(SubAllocator* allocator_);
+  ~GPUTwoLevelTreeMemoryManager();
+  virtual void* AllocateBuffer(size_t N) override;
+  virtual void ReleaseBuffer(void* ptr) override;
+  virtual bool IsAllocatedBuffer(void* ptr) override;
+ 
+ private:
+  class Node {
+   public:
+    ~Node();
+    void* pointer = nullptr;
+    std::shared_ptr<Node> parent = nullptr;
+    std::shared_ptr<Node> left = nullptr, right = nullptr;
+    size_t size = 0;
+    std::shared_ptr<SubAllocator> outside_allocator = nullptr;
+  };
+
+  void returnMemory(std::shared_ptr<Node> node);
+  void* GetFromFreeList(size_t N);
+
+  typedef std::multimap<size_t, std::shared_ptr<Node>> FREELIST;
+  std::map<void*, std::shared_ptr<Node>> used_list_;
+  FREELIST free_list_;
+  size_t total_size_ = 0;
+  std::shared_ptr<SubAllocator> allocator_ptr_;  
+};
+
+class GPUBinaryTreeMemoryManager : public GPUMemoryManager {
+  /**
+   * Manage the memory as a binary tree structure
    * If find the best fitted free chunk, just split it into 2 parts, 
    * The first part, with exactly the requested size, is returned.
    * Then the first part is inserted into the used_list_.
@@ -282,8 +319,8 @@ class GPUTreeMemoryManager : public GPUMemoryManager {
    * If the use_count becomes 0, it means that all the sub-nodes are free, just merge them into a larger Node. 
    */
  public:
-  GPUTreeMemoryManager(SubAllocator* allocator_);
-  ~GPUTreeMemoryManager();
+  GPUBinaryTreeMemoryManager(SubAllocator* allocator_);
+  ~GPUBinaryTreeMemoryManager();
   virtual void* AllocateBuffer(size_t N) override;
   virtual void ReleaseBuffer(void* ptr) override;
   virtual bool IsAllocatedBuffer(void* ptr) override;
@@ -296,7 +333,7 @@ class GPUTreeMemoryManager : public GPUMemoryManager {
     void* pointer = nullptr; // the first is the root pointer and the second is the offset
     std::shared_ptr<Node> parent = nullptr;
     size_t size = 0;
-    size_t use_ount = 0;
+    size_t use_count = 0;
     std::shared_ptr<SubAllocator> outside_allocator = nullptr;
   };
 
