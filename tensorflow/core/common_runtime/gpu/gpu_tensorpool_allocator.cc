@@ -615,6 +615,12 @@ GPUTwoLevelTreeMemoryManager::Node::~Node() {
   }
 }
 
+std::string GPUTwoLevelTreeMemoryManager::Node::DebugString() {
+  std::stringstream ss;
+  ss << "0x" << std::hex << reinterpret_cast<uintptr_t>(pointer);
+  return "Node(" + ss.str() + ", " + std::to_string(size) + ")";
+}
+
 GPUTwoLevelTreeMemoryManager::GPUTwoLevelTreeMemoryManager(SubAllocator* allocator_) 
     : allocator_ptr_(allocator_) {}
 
@@ -685,10 +691,12 @@ void GPUTwoLevelTreeMemoryManager::ReleaseBuffer(void* ptr) {
 void GPUTwoLevelTreeMemoryManager::returnMemory(std::shared_ptr<Node> node) {
   free_list_.insert(std::make_pair(node->size, node));
   if(node->parent == nullptr) {
+    LOG(FATAL) << "GPUBinaryTreeMemoryManager Invalid Return root node";
     return;  // this is the root node, not need merge
   }
   // find left nodes that can be merged
   if(node->left != nullptr) {
+    VLOG(0) << node->DebugString() << " has left " << node->left->DebugString();
     bool can_merge = false;
     for(auto iter: free_list_) {
       if(iter.second == node->left && (iter.second)->parent == node->parent) {
@@ -697,16 +705,28 @@ void GPUTwoLevelTreeMemoryManager::returnMemory(std::shared_ptr<Node> node) {
       }
     }
     if (can_merge) {
+      VLOG(0) << node->DebugString() << " can merge with left " << node->left->DebugString();
+      auto original_right = node;
       node = node->left;
-      // merge the node->right into node
-      node->size += node->right->size;
-      node->right = node->right->right;
-      if (node->right->right != nullptr) {
-        node->right->right->left = node;
+      VLOG(0) << "update node to " << node->DebugString() << ", and has right " << node->right;
+      if (node->right != original_right) {
+        LOG(FATAL) << "Error bidirection link list";
+        return;
       }
+      // merge the node->right into node
+      node->size += original_right->size;
+      VLOG(0) << "update node->size to " << node->size;
+      node->right = original_right->right;
+      VLOG(0) << "update node->right to " << node->right->DebugString();
+      if (node->right != nullptr) {
+        VLOG(0) << "update node->right->left to node";
+        node->right->left = node;
+      }
+      VLOG(0) << node->DebugString() << " finish merge";
       // delete the node->right from free list
       for(auto iter = free_list_.begin(); iter != free_list_.end(); iter++) {
-        if(iter->second == node->right) {
+        if(iter->second == original_right) {
+          VLOG(0) << "erase " << original_right->DebugString() << " from free list";
           free_list_.erase(iter);
           break;
         }
@@ -715,6 +735,7 @@ void GPUTwoLevelTreeMemoryManager::returnMemory(std::shared_ptr<Node> node) {
   }
   // find right nodes that can be merged
   if (node->right != nullptr) {
+    VLOG(0) << node->DebugString() << " has right " << node->right->DebugString();
     bool can_merge = false;
     for(auto iter: free_list_) {
       if(iter.second == node->right && (iter.second)->parent == node->parent) {
@@ -723,15 +744,22 @@ void GPUTwoLevelTreeMemoryManager::returnMemory(std::shared_ptr<Node> node) {
       }
     }
     if (can_merge) {
+      auto original_right = node->right;
+      VLOG(0) << node->DebugString() << " can merge with right";
       // merge the node->right into node
       node->size += node->right->size;
+      VLOG(0) << "update " << node->DebugString() << " size to " << node->size;
       node->right = node->right->right;
-      if (node->right->right != nullptr) {
-        node->right->right->left = node;
+      VLOG(0) << "update " << node->DebugString() << " right to " << node->right;
+      if (node->right != nullptr) {
+        VLOG(0) << "update node->right->left to node";
+        node->right->left = node;
       }
+      VLOG(0) << node->DebugString() << " finish merge";
       // delete the node->right from free list
       for(auto iter = free_list_.begin(); iter != free_list_.end(); iter++) {
-        if(iter->second == node->right) {
+        if(iter->second == original_right) {
+          VLOG(0) << "erase " << original_right->DebugString() << " from free list";
           free_list_.erase(iter);
           break;
         }
@@ -761,12 +789,18 @@ void* GPUTwoLevelTreeMemoryManager::GetFromFreeList(size_t N) {
   left_node->parent = node->parent;
   left_node->left = node->left;
   left_node->right = right_node;
+  if(left_node->left != nullptr) {
+    left_node->left->right = left_node;
+  }
 
   right_node->size = node->size - N;
   right_node->pointer = (void*)((uint8_t*)node->pointer + N);
   right_node->parent = node->parent;
   right_node->left = left_node;
   right_node->right = node->right;
+  if(right_node->right != nullptr) {
+    right_node->right->left = right_node;
+  }
 
   // update the used_list_ and free_list_
   used_list_.insert(std::make_pair(left_node->pointer, left_node));
@@ -927,7 +961,7 @@ GPUTensorPoolAllocator::GPUTensorPoolAllocator(
   }
   mem_planner_->SetAllocator(this);
   alloc_stats_.bytes_limit = static_cast<int64>(total_memory);
-  fallback_memory_manager_ = std::make_shared<GPUBinaryTreeMemoryManager>(sub_allocator);
+  fallback_memory_manager_ = std::make_shared<GPUTwoLevelTreeMemoryManager>(sub_allocator);
 }
 
 GPUTensorPoolAllocator::~GPUTensorPoolAllocator() {

@@ -294,6 +294,7 @@ class GPUTwoLevelTreeMemoryManager : public GPUMemoryManager {
     std::shared_ptr<Node> left = nullptr, right = nullptr;
     size_t size = 0;
     std::shared_ptr<SubAllocator> outside_allocator = nullptr;
+    std::string DebugString();
   };
 
   void returnMemory(std::shared_ptr<Node> node);
