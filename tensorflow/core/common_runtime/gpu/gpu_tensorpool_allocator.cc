@@ -122,7 +122,7 @@ void GPUMemoryPlanner::Reset() {
 void GPUMemoryPlanner::StartCollect() {
   // std::lock_guard<spin_lock> l(allocate_lock_);
   if (is_stats_.load()) {
-    VLOG(0) << allocator_->Name() << " at " << allocator_ << " call BestFit() of planner " << this;
+    VLOG(2) << allocator_->Name() << " at " << allocator_ << " call BestFit() of planner " << this;
     BestFit();
     ResetStats();
   }
@@ -145,11 +145,11 @@ void GPUMemoryPlanner::StartCollect() {
 
 void GPUMemoryPlanner::BestFit() {
   for (auto policy : lifetime_stats_polices_) {
-    VLOG(0) << "GPUMemoryPlanner " << this << " call BestFit with policy " << policy;
+    VLOG(2) << "GPUMemoryPlanner " << this << " call BestFit with policy " << policy;
     policy->BestFit();
   }
   for (auto bin : small_bins_) {
-    VLOG(0) << "GPUMemoryPlanner " << this << " call SmallFit with bin " << bin;
+    VLOG(2) << "GPUMemoryPlanner " << this << " call SmallFit with bin " << bin;
     bin->SmallFit();
   }
 }
@@ -213,7 +213,7 @@ void GPUMemoryPlanner::SetThreadPool(thread::ThreadPool* thread_pool) {
 }
 void GPUMemoryPlanner::Schedule(std::function<void()> f) {
   if (thread_pool_ == nullptr) {
-    VLOG(0) << "GPUMemoryPlanner::Schedule directly because thread pool is nullptr";
+    VLOG(2) << "GPUMemoryPlanner::Schedule directly because thread pool is nullptr";
     f();
   } else {
     thread_pool_->Schedule(std::move(f));
@@ -237,7 +237,7 @@ void GPUMemoryPlanner::TrackAllocate(size_t alignment, size_t num_bytes, void* p
     alloc_stats->size = num_bytes;
     ptr_stats_[ptr] = alloc_stats;
   }
-  VLOG(0) << "TrackAllocate with ptr " << ptr << " size " << num_bytes << " allocated at " << doubleToStringWithoutScientificNotation(Timeval2Double(tmp));
+  VLOG(2) << "TrackAllocate with ptr " << ptr << " size " << num_bytes << " allocated at " << doubleToStringWithoutScientificNotation(Timeval2Double(tmp));
 
   if (SmallAlloc(num_bytes)) {
     GetSmallBin(num_bytes)->TrackAllocate(alignment);
@@ -271,7 +271,7 @@ void GPUMemoryPlanner::TrackDeallocate(void* ptr) {
     logic_step_.fetch_add(1);
   }
 
-  VLOG(0) << "TrackDeallocate with ptr " << ptr << " deallocated at " << doubleToStringWithoutScientificNotation(Timeval2Double(tmp));
+  VLOG(2) << "TrackDeallocate with ptr " << ptr << " deallocated at " << doubleToStringWithoutScientificNotation(Timeval2Double(tmp));
   if (SmallAlloc(alloc_stats->size)) {
     GetSmallBin(alloc_stats->size)->TrackDeallocate(alloc_stats);
     return;
@@ -396,11 +396,11 @@ void GPULifetimePolicy::BestFit() {
   std::lock_guard<spin_lock> l(large_bin_lock_);
   for (auto it = large_bins_.rbegin(); it != large_bins_.rend(); ++it) {
     auto bin_info = it->second;
-    VLOG(0) << "policy " << this << " BestFit of policy large bin:" << bin_info->BinIndex();
+    VLOG(2) << "policy " << this << " BestFit of policy large bin:" << bin_info->BinIndex();
     bin_info->BestFit(this);
   }
   for (auto it = bins_.rbegin(); it != bins_.rend(); ++it) {
-    VLOG(0) << "policy " << this << " BestFit of policy small bin:" << (*it)->BinIndex();
+    VLOG(2) << "policy " << this << " BestFit of policy small bin:" << (*it)->BinIndex();
     (*it)->BestFit(this);
   }
 }
@@ -467,7 +467,7 @@ void GPULifetimeBin::BestFit(GPULifetimePolicy* policy) {
   // sort by alloc time
   std::sort(stats_.begin(), stats_.end(), AllocTimeCompare);
   for (auto s : stats_) {
-    VLOG(0) << "GPULifetimeBin " << this << " BestFit of State " << s << " " << s->DebugString();
+    VLOG(2) << "GPULifetimeBin " << this << " BestFit of State " << s << " " << s->DebugString();
     auto block = FindBlock(s);
     if (block != nullptr) {
       block->Insert(s);
@@ -492,7 +492,7 @@ void GPULifetimeBin::SmallFit() {
     return;
   }
   for (auto s : stats_) {
-    VLOG(0) << "GPULifetimeBin " << this << " SmallFit of State " << s << " " << s->DebugString();
+    VLOG(2) << "GPULifetimeBin " << this << " SmallFit of State " << s << " " << s->DebugString();
     auto block = FindBlock(s);
     if (block != nullptr) {
       block->Insert(s);
@@ -650,14 +650,14 @@ bool GPUTwoLevelTreeMemoryManager::IsAllocatedBuffer(void* ptr) {
 void* GPUTwoLevelTreeMemoryManager::AllocateBuffer(size_t N) {
   void* ptr = GetFromFreeList(N);
   if (nullptr != ptr) {
-    VLOG(0) << "GPUTwoLevelTreeMemoryManager::AllocateBuffer and get " << ptr << " from free list";
+    VLOG(2) << "GPUTwoLevelTreeMemoryManager::AllocateBuffer and get " << ptr << " from free list";
     return ptr;
   }
   // alloc new buffer
   size_t bytes_received;
   ptr = allocator_ptr_->Alloc(1, N, &bytes_received);
   if (nullptr == ptr) {
-    VLOG(0) << "AllocateBuffer but get nullptr, may because of OOM!";
+    VLOG(2) << "AllocateBuffer but get nullptr, may because of OOM!";
     return ptr;
   }
   total_size_ += N;
@@ -672,12 +672,12 @@ void* GPUTwoLevelTreeMemoryManager::AllocateBuffer(size_t N) {
   leaf_node->parent = root_node;
 
   used_list_.insert(std::make_pair(ptr, leaf_node));
-  VLOG(0) << "AllocateBuffer and get " << ptr << " from OS";
+  VLOG(2) << "AllocateBuffer and get " << ptr << " from OS";
   return ptr;
 }
 
 void GPUTwoLevelTreeMemoryManager::ReleaseBuffer(void* ptr) {
-  VLOG(0) << "call ReleaseBuffer: " << ptr;
+  VLOG(2) << "call ReleaseBuffer: " << ptr;
   auto iter = used_list_.find(ptr);
   if (iter == used_list_.end()) {
     LOG(FATAL) << "GPUBinaryTreeMemoryManager Invalid Release Buffer: " << ptr;
@@ -696,7 +696,7 @@ void GPUTwoLevelTreeMemoryManager::returnMemory(std::shared_ptr<Node> node) {
   }
   // find left nodes that can be merged
   if(node->left != nullptr) {
-    VLOG(0) << node->DebugString() << " has left " << node->left->DebugString();
+    VLOG(2) << node->DebugString() << " has left " << node->left->DebugString();
     bool can_merge = false;
     for(auto iter: free_list_) {
       if(iter.second == node->left && (iter.second)->parent == node->parent) {
@@ -705,28 +705,28 @@ void GPUTwoLevelTreeMemoryManager::returnMemory(std::shared_ptr<Node> node) {
       }
     }
     if (can_merge) {
-      VLOG(0) << node->DebugString() << " can merge with left " << node->left->DebugString();
+      VLOG(2) << node->DebugString() << " can merge with left " << node->left->DebugString();
       auto original_right = node;
       node = node->left;
-      VLOG(0) << "update node to " << node->DebugString() << ", and has right " << node->right;
+      VLOG(2) << "update node to " << node->DebugString() << ", and has right " << node->right;
       if (node->right != original_right) {
         LOG(FATAL) << "Error bidirection link list";
         return;
       }
       // merge the node->right into node
       node->size += original_right->size;
-      VLOG(0) << "update node->size to " << node->size;
+      VLOG(2) << "update node->size to " << node->size;
       node->right = original_right->right;
-      VLOG(0) << "update node->right to " << node->right->DebugString();
+      VLOG(2) << "update node->right to " << node->right->DebugString();
       if (node->right != nullptr) {
-        VLOG(0) << "update node->right->left to node";
+        VLOG(2) << "update node->right->left to node";
         node->right->left = node;
       }
-      VLOG(0) << node->DebugString() << " finish merge";
+      VLOG(2) << node->DebugString() << " finish merge";
       // delete the node->right from free list
       for(auto iter = free_list_.begin(); iter != free_list_.end(); iter++) {
         if(iter->second == original_right) {
-          VLOG(0) << "erase " << original_right->DebugString() << " from free list";
+          VLOG(2) << "erase " << original_right->DebugString() << " from free list";
           free_list_.erase(iter);
           break;
         }
@@ -735,7 +735,7 @@ void GPUTwoLevelTreeMemoryManager::returnMemory(std::shared_ptr<Node> node) {
   }
   // find right nodes that can be merged
   if (node->right != nullptr) {
-    VLOG(0) << node->DebugString() << " has right " << node->right->DebugString();
+    VLOG(2) << node->DebugString() << " has right " << node->right->DebugString();
     bool can_merge = false;
     for(auto iter: free_list_) {
       if(iter.second == node->right && (iter.second)->parent == node->parent) {
@@ -745,21 +745,21 @@ void GPUTwoLevelTreeMemoryManager::returnMemory(std::shared_ptr<Node> node) {
     }
     if (can_merge) {
       auto original_right = node->right;
-      VLOG(0) << node->DebugString() << " can merge with right";
+      VLOG(2) << node->DebugString() << " can merge with right";
       // merge the node->right into node
       node->size += node->right->size;
-      VLOG(0) << "update " << node->DebugString() << " size to " << node->size;
+      VLOG(2) << "update " << node->DebugString() << " size to " << node->size;
       node->right = node->right->right;
-      VLOG(0) << "update " << node->DebugString() << " right to " << node->right;
+      VLOG(2) << "update " << node->DebugString() << " right to " << node->right;
       if (node->right != nullptr) {
-        VLOG(0) << "update node->right->left to node";
+        VLOG(2) << "update node->right->left to node";
         node->right->left = node;
       }
-      VLOG(0) << node->DebugString() << " finish merge";
+      VLOG(2) << node->DebugString() << " finish merge";
       // delete the node->right from free list
       for(auto iter = free_list_.begin(); iter != free_list_.end(); iter++) {
         if(iter->second == original_right) {
-          VLOG(0) << "erase " << original_right->DebugString() << " from free list";
+          VLOG(2) << "erase " << original_right->DebugString() << " from free list";
           free_list_.erase(iter);
           break;
         }
@@ -835,14 +835,14 @@ bool GPUBinaryTreeMemoryManager::IsAllocatedBuffer(void* ptr) {
 void* GPUBinaryTreeMemoryManager::AllocateBuffer(size_t N) {
   void* ptr = GetFromFreeList(N);
   if (nullptr != ptr) {
-    VLOG(0) << "AllocateBuffer and get " << ptr << " from free list";
+    VLOG(2) << "AllocateBuffer and get " << ptr << " from free list";
     return ptr;
   }
   // alloc otherwise
   size_t bytes_received;
   ptr = allocator_ptr_->Alloc(1, N, &bytes_received);
   if (nullptr == ptr) {
-    VLOG(0) << "AllocateBuffer but get nullptr, may because of OOM!";
+    VLOG(2) << "AllocateBuffer but get nullptr, may because of OOM!";
     return ptr;
   }
   total_size_ += N;
@@ -851,12 +851,12 @@ void* GPUBinaryTreeMemoryManager::AllocateBuffer(size_t N) {
   node->pointer = ptr;
   node->outside_allocator = allocator_ptr_;
   used_list_[ptr] = node;
-  VLOG(0) << "AllocateBuffer and get " << ptr << " from OS";
+  VLOG(2) << "AllocateBuffer and get " << ptr << " from OS";
   return ptr;
 }
 
 void GPUBinaryTreeMemoryManager::ReleaseBuffer(void* ptr) {
-  VLOG(0) << "call ReleaseBuffer: " << ptr;
+  VLOG(2) << "call ReleaseBuffer: " << ptr;
   auto iter = used_list_.find(ptr);
   if (iter == used_list_.end()) {
     LOG(FATAL) << "GPUBinaryTreeMemoryManager Invalid Release Buffer: " << ptr;
@@ -1008,10 +1008,10 @@ void GPUTensorPoolAllocator::Init() {
     size_t max_alignment = 0;
 
     for (auto it = policy_bins.begin(); it != policy_bins.end(); ++it) {
-      VLOG(0) << "bin index " << (*it)->BinIndex() << " block size " << (*it)->BlockSize() << " chunksize " << (*it)->ChunkSize()
+      VLOG(2) << "bin index " << (*it)->BinIndex() << " block size " << (*it)->BlockSize() << " chunksize " << (*it)->ChunkSize()
               << " alignment " << (*it)->Alignment();
       if ((*it)->BlockSize() > 0) {
-        VLOG(0) << "\tbin index " << (*it)->BinIndex() << " block size " << (*it)->BlockSize() << " chunksize " << (*it)->ChunkSize() 
+        VLOG(2) << "\tbin index " << (*it)->BinIndex() << " block size " << (*it)->BlockSize() << " chunksize " << (*it)->ChunkSize() 
                   << " alignment " << (*it)->Alignment() << " totalMemory " << (*it)->TotalMem();
         // add padding between two bins
         big_bytes_ = RoundedBytes(big_bytes_, (*it)->Alignment());
@@ -1024,10 +1024,10 @@ void GPUTensorPoolAllocator::Init() {
     auto policy_large_bins = lifetime_policy->GetLargeBins();
     for (auto it = policy_large_bins.begin(); it != policy_large_bins.end(); ++it) {
       auto bin_info = it->second;
-      VLOG(0) << "bin index " << bin_info->BinIndex() << " block size " << bin_info->BlockSize() << " chunksize " << bin_info->ChunkSize()
+      VLOG(2) << "bin index " << bin_info->BinIndex() << " block size " << bin_info->BlockSize() << " chunksize " << bin_info->ChunkSize()
               << " alignment " << bin_info->Alignment();
       if (bin_info->BlockSize() > 0) {
-        VLOG(0) << "\tbin index " << bin_info->BinIndex() << " block size " << bin_info->BlockSize() << " chunksize " << bin_info->ChunkSize()
+        VLOG(2) << "\tbin index " << bin_info->BinIndex() << " block size " << bin_info->BlockSize() << " chunksize " << bin_info->ChunkSize()
                 << " alignment " << bin_info->Alignment() << " totalMemory " << bin_info->TotalMem();
         // add padding between two bins
         big_bytes_ = RoundedBytes(big_bytes_, bin_info->Alignment());
@@ -1037,7 +1037,7 @@ void GPUTensorPoolAllocator::Init() {
       }
     }
 
-    VLOG(0) << "big_bytes_ " << big_bytes_ << " max_alignment " << max_alignment;
+    VLOG(2) << "big_bytes_ " << big_bytes_ << " max_alignment " << max_alignment;
     size_t bytes_received;
     big_mem_begin_ = sub_allocator_->Alloc(max_alignment, big_bytes_, &bytes_received);
     directly_allocated_pointers_.insert(big_mem_begin_);
@@ -1155,7 +1155,7 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
   // VLOG(1) << name_ << " Calling AllocateRaw, env PRMALLOC_STAGE is " << std::getenv("PRMALLOC_STAGE");
   std::lock_guard<spin_lock> l(allocate_lock_);
   auto real_num_bytes = RoundedBytes(num_bytes, alignment);
-  VLOG(0) << name_ << " Calling AllocateRaw: using optimized allocation planner, requiring " << real_num_bytes << " bytes";
+  VLOG(2) << name_ << " Calling AllocateRaw: using optimized allocation planner, requiring " << real_num_bytes << " bytes";
   auto ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
   return ptr;
 
@@ -1164,11 +1164,11 @@ void* GPUTensorPoolAllocator::AllocateRaw(size_t alignment, size_t num_bytes) {
     // VLOG(1) << name_ << " Calling AllocateRaw, step_id is " << step_id_.load() << ", current_step is " << current_step << std::endl;
     mem_planner_->StartCollect();
     step_id_.store(current_step);
-    VLOG(0) << name_ << " Calling AllocateRaw, after planner.collect, step_id is " << step_id_.load() << ", current_step is " << current_step << " inited_ is " << inited_.load();
+    VLOG(2) << name_ << " Calling AllocateRaw, after planner.collect, step_id is " << step_id_.load() << ", current_step is " << current_step << " inited_ is " << inited_.load();
   }
-  VLOG(0) << name_ << " Calling AllocateRaw with inited_ " << inited_.load();
+  VLOG(2) << name_ << " Calling AllocateRaw with inited_ " << inited_.load();
   if (!inited_.load()) {
-    VLOG(0) << name_ << " Calling AllocateRaw: Allocate from OS directly, requiring " << num_bytes << " bytes";
+    VLOG(2) << name_ << " Calling AllocateRaw: Allocate from OS directly, requiring " << num_bytes << " bytes";
     size_t bytes_received;
     auto ptr = sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
     directly_allocated_pointers_.insert(ptr);
@@ -1403,7 +1403,7 @@ void* GPUTensorPoolAllocator::SmallAllocate(size_t alignment, size_t num_bytes) 
   if (unlikely(bin == nullptr)) {
     // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
     ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
-    VLOG(0) << "call SmallAllocate but still require from OS for " << real_num_bytes << " bytes because bin is nullptr and get " << ptr;
+    VLOG(2) << "call SmallAllocate but still require from OS for " << real_num_bytes << " bytes because bin is nullptr and get " << ptr;
     return ptr;
   }
   ptr = bin->AllocateRaw();
@@ -1411,7 +1411,7 @@ void* GPUTensorPoolAllocator::SmallAllocate(size_t alignment, size_t num_bytes) 
     return ptr;
   }
   ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
-  VLOG(0) << "call SmallAllocate but still require from OS for " << real_num_bytes << " bytes and get " << ptr;
+  VLOG(2) << "call SmallAllocate but still require from OS for " << real_num_bytes << " bytes and get " << ptr;
   // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
   return ptr;
 }
@@ -1424,7 +1424,7 @@ void* GPUTensorPoolAllocator::BigAllocate(size_t alignment, size_t num_bytes) {
   if (unlikely(id < 0)) {
     // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
     ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
-    VLOG(0) << "call BigAllocate but still require from OS for " << real_num_bytes << " bytes beacuse id < 0 and get " << ptr;
+    VLOG(2) << "call BigAllocate but still require from OS for " << real_num_bytes << " bytes beacuse id < 0 and get " << ptr;
     return ptr;
   }
 
@@ -1432,7 +1432,7 @@ void* GPUTensorPoolAllocator::BigAllocate(size_t alignment, size_t num_bytes) {
   if (unlikely(b == nullptr)) {
     // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
     ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
-    VLOG(0) << "call BigAllocate but still require from OS for " << real_num_bytes << " bytes beacuse bin is nullptr and get " << ptr;
+    VLOG(2) << "call BigAllocate but still require from OS for " << real_num_bytes << " bytes beacuse bin is nullptr and get " << ptr;
     return ptr;
   }
 
@@ -1443,7 +1443,7 @@ void* GPUTensorPoolAllocator::BigAllocate(size_t alignment, size_t num_bytes) {
 
   // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
   ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
-  VLOG(0) << "call BigAllocate but still require from OS for " << real_num_bytes << " bytes and get " << ptr;
+  VLOG(2) << "call BigAllocate but still require from OS for " << real_num_bytes << " bytes and get " << ptr;
   return ptr;
 }
 
@@ -1456,7 +1456,7 @@ void* GPUTensorPoolAllocator::BigAllocateStatistic(size_t alignment, size_t num_
   if (unlikely(id < 0)) {
     // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
     ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
-    VLOG(0) << "call BigAllocateStatistic but still require from OS for " << real_num_bytes << " bytes because id < 0 and get " << ptr;
+    VLOG(2) << "call BigAllocateStatistic but still require from OS for " << real_num_bytes << " bytes because id < 0 and get " << ptr;
     return ptr;
   }
 
@@ -1465,7 +1465,7 @@ void* GPUTensorPoolAllocator::BigAllocateStatistic(size_t alignment, size_t num_
     ++null_bin_counter_;
     // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
     ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
-    VLOG(0) << "call BigAllocateStatistic but still require from OS for " << real_num_bytes << " bytes because bin is nullptr and get " << ptr;
+    VLOG(2) << "call BigAllocateStatistic but still require from OS for " << real_num_bytes << " bytes because bin is nullptr and get " << ptr;
     return ptr;
   }
 
@@ -1478,7 +1478,7 @@ void* GPUTensorPoolAllocator::BigAllocateStatistic(size_t alignment, size_t num_
   ++missed_counter_;
   // return sub_allocator_->Alloc(alignment, num_bytes, &bytes_received);
   ptr = fallback_memory_manager_->AllocateBuffer(real_num_bytes);
-  VLOG(0) << "call BigAllocateStatistic but still require from OS for " << real_num_bytes << " bytes and get " << ptr;
+  VLOG(2) << "call BigAllocateStatistic but still require from OS for " << real_num_bytes << " bytes and get " << ptr;
   return ptr;
 }
 
