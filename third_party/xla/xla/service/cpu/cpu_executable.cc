@@ -42,6 +42,7 @@ limitations under the License.
 #include "llvm/IR/Mangler.h"
 #include "llvm/Support/Error.h"
 #include "xla/backends/cpu/runtime/buffer_allocations.h"
+#include "xla/backends/cpu/runtime/thread_pool_task_runner.h"
 #include "xla/backends/cpu/runtime/thunk.h"
 #include "xla/backends/cpu/runtime/thunk_executor.h"
 #include "xla/executable_run_options.h"
@@ -389,9 +390,8 @@ absl::Status CpuExecutable::ExecuteThunks(
                       Thunk::CustomCallExecuteParams::Create(run_options));
 
   // Use the intra-op thread pool to offload thunk executor tasks.
-  Thunk::TaskRunner task_runner = [run_options](Thunk::Task task) {
-    run_options->intra_op_thread_pool()->getPool()->Schedule(std::move(task));
-  };
+  ThreadPoolTaskRunner task_runner(
+      run_options->intra_op_thread_pool()->getPool());
 
   Thunk::ExecuteParams execute_params = {
       &*function_registry_,
