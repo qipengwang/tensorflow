@@ -224,6 +224,69 @@ TEST_F(BlasAlgorithmTest, Algorithm_BF16_BF16_F32) {
   }
 }
 
+TEST_F(BlasAlgorithmTest, Algorithm_BF16_BF16_F32_X3) {
+  // We check that the algorithm is propagated to the BLAS call.
+  // We also check that the kernel name matches the algorithm for Ampere.
+  // The algorithm for Hopper is not the one we expect because it uses TF32.
+
+  if (!SupportsBF16(GpuComputeComp())) {
+    GTEST_SKIP() << "BF16 not supported.";
+  }
+  constexpr std::string_view kHloText = R"(
+    HloModule t
+
+    ENTRY main {
+      lhs = f32[8512,256]{1,0} parameter(0)
+      rhs = f32[256,8512]{1,0} parameter(1)
+      ROOT dot = f32[8512,8512]{1,0} dot(lhs, rhs),
+          algorithm=dot_bf16_bf16_f32_x3,
+          lhs_contracting_dims={1},
+          rhs_contracting_dims={0}
+    }
+  )";
+  // Single dot was replaced with 3 dots.
+  const std::string pattern = R"(
+    CHECK: custom_call_target="__cublas$gemm"
+    CHECK: custom_call_target="__cublas$gemm"
+    CHECK: custom_call_target="__cublas$gemm"
+  )";
+
+  TF_ASSERT_OK_AND_ASSIGN(auto module, GetOptimizedModule(kHloText));
+  TF_ASSERT_OK_AND_ASSIGN(auto ok, RunFileCheck(module->ToString(), pattern));
+  ASSERT_TRUE(ok);
+
+  auto tracer = KernelNameTracer::Create();
+  if (tracer == nullptr) {
+    GTEST_SKIP() << "KernelNameTracer is not implemented.";
+  }
+  tracer->start();
+  EXPECT_TRUE(Run(std::move(module), /*run_hlo_passes=*/false));
+  auto kernel_names = tracer->stop();
+
+  auto cc = GetCudaComputeCapability();
+  using CudaComputeCapabilities =
+      stream_executor::CudaComputeCapability::CudaComputeCapabilities;
+  switch (cc.major) {
+    case CudaComputeCapabilities::BLACKWELL:
+      GTEST_SKIP() << "CudaComputeCapabilities::BLACKWELL has the kernel name: "
+                   << kernel_names[0];
+      break;
+    case CudaComputeCapabilities::AMPERE:
+      ASSERT_EQ(kernel_names.size(), 1);
+      EXPECT_THAT(kernel_names[0], ::testing::Eq("loop_convert_fusion_1"));
+      break;
+    case CudaComputeCapabilities::HOPPER:
+      EXPECT_THAT(kernel_names,
+                  ::testing::UnorderedElementsAre(
+                      ::testing::Eq("loop_convert_fusion_1"),
+                      ::testing::HasSubstr("gemm_bf16f32_bf16f32_f32_")));
+      break;
+    default:
+      GTEST_SKIP() << "Unsupported compute capability: " << cc.major
+                   << " has the kernel name: " << kernel_names[0];
+  }
+}
+
 TEST_F(BlasAlgorithmTest, Algorithm_TF32_TF32_F32_X3) {
   // We check that the algorithm is propagated to the BLAS call.
   // We also check that the kernel name matches the algorithm for Ampere.
@@ -5303,6 +5366,8 @@ class TritonAlgorithmTest : public TritonTest {
  public:
   DebugOptions GetDebugOptionsForTest() override {
     DebugOptions debug_options = TritonTest::GetDebugOptionsForTest();
+    // Enable gemm for any hlo including pure matmuls.
+    debug_options.set_xla_gpu_triton_gemm_any(true);
     // Do not fall back to cuBLAS, we are testing Triton.
     debug_options.set_xla_gpu_cublas_fallback(false);
     // Do not autotune split-k by default, since this prevents deterministically
@@ -5321,6 +5386,26 @@ TEST_F(TritonAlgorithmTest, Algorithm_TF32_TF32_F32_X3) {
       rhs = f32[64,8512]{1,0} parameter(1)
       ROOT dot = f32[8512,8512]{1,0} dot(lhs, rhs),
           algorithm=dot_tf32_tf32_f32_x3,
+          lhs_contracting_dims={1},
+          rhs_contracting_dims={0}
+    }
+  )";
+  const std::string pattern =
+      R"(CHECK: "kind":"__triton_gemm","triton_gemm_config")";
+  TF_ASSERT_OK_AND_ASSIGN(auto module, GetOptimizedModule(kHloText));
+  TF_ASSERT_OK_AND_ASSIGN(auto ok, RunFileCheck(module->ToString(), pattern));
+  EXPECT_TRUE(ok);
+}
+
+TEST_F(TritonAlgorithmTest, Algorithm_BF16_BF16_F32_X3) {
+  const std::string kHloText = R"(
+    HloModule t
+
+    ENTRY main {
+      lhs = f32[8512,64]{1,0} parameter(0)
+      rhs = f32[64,8512]{1,0} parameter(1)
+      ROOT dot = f32[8512,8512]{1,0} dot(lhs, rhs),
+          algorithm=dot_bf16_bf16_f32_x3,
           lhs_contracting_dims={1},
           rhs_contracting_dims={0}
     }
