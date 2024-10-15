@@ -58,6 +58,7 @@ limitations under the License.
 #include "xla/python/ifrt/future.h"
 #include "xla/python/ifrt/hlo/hlo_program.h"
 #include "xla/python/ifrt/host_callback.h"
+#include "xla/python/ifrt/program.h"
 #include "xla/python/ifrt/shape.h"
 #include "xla/python/ifrt/sharding.h"
 #include "xla/python/pjrt_ifrt/pjrt_host_callback.h"
@@ -439,16 +440,35 @@ IfrtServingExecutable::CreateExecutableSynchronously(
             std::make_unique<xla::HostCallback>(host_callback)));
   }
 
-  TF_ASSIGN_OR_RETURN(
-      std::unique_ptr<xla::ifrt::LoadedExecutable> ifrt_executable,
-      ifrt_client_->GetDefaultCompiler()->Compile(
-          std::make_unique<xla::ifrt::HloProgram>(
-              tf2hlo_result.mlir_hlo_module.get()),
-          std::make_unique<xla::ifrt::XlaCompileOptions>(
-              xla_compile_options, loaded_host_callbacks)));
-
+  auto hlo_program = std::make_unique<xla::ifrt::HloProgram>(
+      tf2hlo_result.mlir_hlo_module.get());
+  std::unique_ptr<xla::ifrt::LoadedExecutable> ifrt_executable;
   SharedCachedExecutableBundle executable_bundle =
       std::make_shared<CachedExecutableBundle>();
+
+  if (persistent_compilation_cache_) {
+    TF_ASSIGN_OR_RETURN(
+        ifrt_executable,
+        persistent_compilation_cache_->LookupLoadedExecutableOrCreate(
+            std::move(hlo_program), assigned_device_list_, xla_compile_options,
+            loaded_host_callbacks, ifrt_client_.get(),
+            [&](std::unique_ptr<xla::ifrt::Program> program,
+                std::unique_ptr<xla::ifrt::CompileOptions> options)
+                -> absl::StatusOr<
+                    std::unique_ptr<xla::ifrt::LoadedExecutable>> {
+              return ifrt_client_->GetDefaultCompiler()->Compile(
+                  std::move(program), std::move(options));
+            }));
+  } else {
+    auto ifrt_xla_compile_options =
+        std::make_unique<xla::ifrt::XlaCompileOptions>(xla_compile_options,
+                                                       loaded_host_callbacks);
+    TF_ASSIGN_OR_RETURN(
+        ifrt_executable,
+        ifrt_client_->GetDefaultCompiler()->Compile(
+            std::move(hlo_program), std::move(ifrt_xla_compile_options)));
+  }
+
   executable_bundle->ifrt_executable = std::move(ifrt_executable);
   executable_bundle->compile_metadata =
       std::move(tf2hlo_result.compile_metadata);

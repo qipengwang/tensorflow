@@ -127,7 +127,6 @@ cc_library(
         ":ifrt_tensor_utils",
         ":sharding_utils",
         ":tf_host_callback",
-        "//tensorflow/compiler/mlir/tensorflow:dump_mlir_util",
         "//tensorflow/compiler/mlir/tfrt:export",
         "//tensorflow/compiler/mlir/tfrt/transforms/ifrt:extract_callback",
         "//tensorflow/compiler/mlir/tfrt/transforms/ifrt:ifrt_types",
